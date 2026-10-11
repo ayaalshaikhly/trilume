@@ -38,7 +38,7 @@ Students rate each presenter's ideas with one tool, or with all three: the **MAY
    - On the last screen, an optional **written comment** per idea (anonymous, up to 300 characters, instructor only).
 4. Results: one map per tool for each presenter with each idea's class average (red, blue, gold), shown on the projector and, by default, on students' phones after Submit; a whole-class map; and with all three tools a **3D map** where each idea is a point on the MAYA, Metaphor and Insight axes (each axis = closeness to that tool's target zone, 0–100). Every map has a **Save** button (picture).
 5. **Email results:** after class, one button emails each presenter their own results (scores, suggestions, map pictures and, if ticked, comments) from the TRILUME Gmail account (`From: TRILUME`). Students without an email are skipped. Preview and test buttons; a "✓ Sent" status per student.
-6. Downloads: **Excel** (summary + one sheet per presenter with every tool's scores and the comments) and CSV files (ideas, all ratings, reference ideas), with names replaced by codes for research.
+6. Downloads (a ZIP folder, two versions: **for instructor** with names and emails, **for research** with codes P001, P002 …): the Excel file with a Summary sheet and one sheet per presenter (each tool's scores, the written comments and their **map pictures**, with links to the full-size images), a maps folder, and CSV files (ideas, all ratings, reference ideas).
 
 ## Files
 

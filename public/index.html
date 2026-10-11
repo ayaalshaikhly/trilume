@@ -279,8 +279,12 @@
         </div>
         <div class="card">
           <h2>Download</h2>
-          <label class="row small" style="margin:8px 0;cursor:pointer"><input type="checkbox" id="anon" checked> Replace names with codes (P001, P002…)</label>
-          <div class="row"><button class="btn btn-primary" id="dlExcel">Excel: one sheet per presenter (scores + comments)</button><button class="btn" id="dlIdeas">Ideas (CSV)</button><button class="btn" id="dlRatings">All ratings (CSV)</button><button class="btn" id="dlRefs">Reference ideas (CSV)</button></div>
+          <p class="small">A <b>ZIP folder</b> with the <b>Excel file</b> (a Summary sheet, then one sheet per presenter with each tool’s scores, the written comments and their <b>maps</b>), the <b>map pictures</b> (with “Open map” links in Excel) and the data as CSV files. <b>Unzip the folder first</b>, then open the Excel file.</p>
+          <div class="row" style="margin-top:10px">
+            <button class="btn btn-primary" id="dlInstructor">Download for instructor (with names)</button>
+            <button class="btn" id="dlResearch">Download for research (names replaced by codes)</button>
+          </div>
+          <p class="small" id="dlMsg" style="margin-top:10px"></p>
         </div>
         <div class="card"><h2>Delete</h2><p class="small muted">Removes this session with its class list and all ratings.</p><button class="btn btn-danger" id="delSess" style="margin-top:10px">Delete this session</button></div>
       </div>
@@ -917,92 +921,178 @@
       post('delete', { id: S.id }).then(function () { toast('Session deleted.'); S = null; go(null); });
     });
 
-    // ---------- CSV ----------
+    // ---------- Downloads: a ZIP folder with the Excel file (maps inside each presenter's sheet),
+    // the map pictures and the data as CSV. Instructor = real names; research = codes (P001, P002 …). ----------
     function csv(rows) {
       return rows.map(function (r) { return r.map(function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
     }
-    function download(name, rows) {
-      var blob = new Blob(['﻿' + csv(rows)], { type: 'text/csv;charset=utf-8' }), a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    }
-    function who(id) {
+    function who(id, anon) {
       var i = S.students.findIndex(function (s) { return s.id === id; });
-      if ($('anon').checked) return 'P' + String(i >= 0 ? i + 1 : id).padStart(3, '0');
+      if (anon) return 'P' + String(i >= 0 ? i + 1 : id).padStart(3, '0');
       return i >= 0 ? S.students[i].name : 'removed #' + id;
     }
     function f2(v) { return v == null ? '' : (Math.round(v * 100) / 100); }
-    function fileBase() { return 'TRILUME_' + S.title.replace(/[^\w\-]+/g, '_').slice(0, 40); }
-    $('dlIdeas').addEventListener('click', function () {
+    function safeFile(n) { return String(n).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'file'; }
+    function fileBase() { return 'TRILUME_' + safeFile(S.title).slice(0, 40); }
+    function loadScript(src) {
+      return new Promise(function (res, rej) {
+        if (document.querySelector('script[data-lib="' + src + '"]')) return res();
+        var sc = document.createElement('script'); sc.src = src; sc.dataset.lib = src;
+        sc.onload = function () { res(); }; sc.onerror = function () { rej(new Error('Could not load ' + src)); };
+        document.head.appendChild(sc);
+      });
+    }
+    function ideasCsv(anon) {
       var head = ['session', 'presenter', 'idea'];
       S.lenses.forEach(function (l) { head.push(l + '_raters', l + '_' + L[l].x.name.split(' (')[0].replace(/\s+/g, '_').toLowerCase(), l + '_' + (L[l].y.axisName || L[l].y.name).replace(/\s+/g, '_').toLowerCase(), l + '_score_0_100', l + '_in_zone'); });
       if (S.lenses.indexOf('insight') !== -1) head.push('insight_region', 'inside_ai_obvious_zone', 'distance_to_ai_centre');
       var rows = [head];
       comp.list.forEach(function (r) {
-        var row = [S.title, who(r.studentId), r.slot];
+        var row = [S.title, who(r.studentId, anon), r.slot];
         S.lenses.forEach(function (l) { var x = r.lens[l] || {}; row.push(x.n || 0, f2(x.x), f2(x.y), x.score == null ? '' : x.score, x.n ? (x.inZone ? 1 : 0) : ''); });
         if (S.lenses.indexOf('insight') !== -1) row.push(r.region ? TL.REGIONS[r.region].name : '', r.obvious ? (r.obvious.inside ? 1 : 0) : '', r.obvious ? f2(r.obvious.dist) : '');
         rows.push(row);
       });
-      download(fileBase() + '_ideas.csv', rows);
-    });
-    // Excel: a summary sheet, then one sheet per presenter with the scores of each tool and the written comments.
-    $('dlExcel').addEventListener('click', function () {
-      if (!window.XLSX) { alert('Still loading, please try again in a moment.'); return; }
-      var btn = this; btn.disabled = true;
-      post('comments', { id: S.id }).then(function (r) {
-        var wb = XLSX.utils.book_new(), used = {};
-        var sheetName = function (n) {
-          var base = String(n).replace(/[\[\]\:\*\?\/\\]/g, ' ').slice(0, 28).trim() || 'Sheet', k = base, i = 2;
-          while (used[k.toLowerCase()]) k = base.slice(0, 26) + ' ' + i++;
-          used[k.toLowerCase()] = 1; return k;
-        };
-        var toolHead = [], ideaRow = function (res) {
-          var row = [];
-          S.lenses.forEach(function (l) { var x = (res && res.lens[l]) || {}; row.push(x.n || 0, f2(x.x), f2(x.y), x.score == null ? '' : x.score, x.n ? (x.inZone ? 'yes' : 'no') : ''); });
-          if (S.lenses.indexOf('insight') !== -1) row.push(res && res.region ? TL.REGIONS[res.region].name : '', res && res.obvious ? (res.obvious.inside ? 'yes' : 'no') : '');
-          return row;
-        };
-        S.lenses.forEach(function (l) { toolHead.push(L[l].short + ' raters', L[l].short + ' ' + L[l].x.name.split(' (')[0], L[l].short + ' ' + (L[l].y.axisName || L[l].y.name), L[l].short + ' score (0-100)', 'In ' + L[l].zoneName); });
-        if (S.lenses.indexOf('insight') !== -1) toolHead.push('Insight region', 'Inside AI obvious zone');
-        // Summary sheet
-        var sum = [['TRILUME', S.title], ['Tools', S.lenses.map(function (l) { return L[l].name; }).join(', ')], ['Downloaded', new Date().toLocaleString()], [], ['Presenter', 'Idea'].concat(toolHead, ['Comments'])];
-        S.students.forEach(function (st) {
-          for (var k = 1; k <= S.ideasPer; k++) {
-            var res = comp.byKey[comp.key(st.id, k)];
-            var nc = r.comments.filter(function (c) { return c.student_id === st.id && c.slot === k; }).length;
-            if (!res && !nc) continue;
-            sum.push([who(st.id), k].concat(ideaRow(res), [nc]));
-          }
-        });
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sum), sheetName('Summary'));
-        // One sheet per presenter
-        S.students.forEach(function (st) {
-          var mine = r.comments.filter(function (c) { return c.student_id === st.id; });
-          var has = S.ratings.some(function (x) { return x.student_id === st.id; }) || mine.length;
-          if (!has) return;
-          var rows = [['Presenter', who(st.id)], ['Session', S.title], [], ['Idea'].concat(toolHead)];
-          for (var k = 1; k <= S.ideasPer; k++) rows.push([k].concat(ideaRow(comp.byKey[comp.key(st.id, k)])));
-          rows.push([], ['Written feedback (anonymous)'], ['Idea', 'Comment']);
-          if (!mine.length) rows.push(['', '(no comments)']);
-          mine.forEach(function (c) { rows.push([c.slot, c.text]); });
-          var ws = XLSX.utils.aoa_to_sheet(rows);
-          ws['!cols'] = [{ wch: 12 }, { wch: 60 }].concat(toolHead.slice(1).map(function () { return { wch: 16 }; }));
-          XLSX.utils.book_append_sheet(wb, ws, sheetName(who(st.id)));
-        });
-        XLSX.writeFile(wb, fileBase() + '.xlsx');
-      }).catch(function (e) { alert('Could not download: ' + e.message); })
-        .finally(function () { btn.disabled = false; });
-    });
-    $('dlRatings').addEventListener('click', function () {
+      return rows;
+    }
+    function ratingsCsv(anon) {
       var rows = [['session', 'presenter', 'idea', 'tool', 'x_scale', 'x', 'y_scale', 'y']];
-      S.ratings.forEach(function (r) { if (S.lenses.indexOf(r.lens) === -1) return; rows.push([S.title, who(r.student_id), r.slot, L[r.lens].name, L[r.lens].x.name, r.x, L[r.lens].y.name, r.y]); });
-      download(fileBase() + '_ratings.csv', rows);
-    });
-    $('dlRefs').addEventListener('click', function () {
+      S.ratings.forEach(function (r) { if (S.lenses.indexOf(r.lens) === -1) return; rows.push([S.title, who(r.student_id, anon), r.slot, L[r.lens].name, L[r.lens].x.name, r.x, L[r.lens].y.name, r.y]); });
+      return rows;
+    }
+    function refsCsv() {
       var rows = [['n', 'title', 'warmup_ratings', 'unexpectedness_mean', 'depth_mean', 'source', 'date', 'prompt']];
       S.refs.forEach(function (r) { rows.push([r.n, r.title, r.count, f2(r.x), f2(r.y), S.aiModel, S.aiDate || '', S.aiPrompt]); });
-      download(fileBase() + '_reference_ideas.csv', rows);
-    });
+      return rows;
+    }
+    // Map pictures of one presenter, drawn off-screen: [{label, dataUrl, w, h}]
+    function mapsFor(id, title, W) {
+      var host = document.createElement('div');
+      host.style.cssText = 'position:fixed;left:-12000px;top:0;width:1100px;background:#fff';
+      document.body.appendChild(host);
+      host.innerHTML = TL.presenterHtml(S, comp, id, { cubeKey: 'export', title: title });
+      TL.mountPresenterCube(host, S, comp, id, 'export');
+      var jobs = Array.prototype.map.call(host.querySelectorAll('.tool-card'), function (card) {
+        var name = card.querySelector('.tool-name').textContent;
+        return TL.mapCanvas(card.querySelector('svg.map'), title + ' · ' + name, W).then(function (c) { return { label: name, dataUrl: c.toDataURL('image/png'), w: c.width, h: c.height }; });
+      });
+      var cube = host.querySelector('canvas.cube');
+      if (cube) jobs.push(TL.mapCanvas(cube, title + ' · 3D map', W).then(function (c) { return { label: '3D map', dataUrl: c.toDataURL('image/png'), w: c.width, h: c.height }; }));
+      return Promise.all(jobs).then(function (imgs) { host.remove(); return imgs; });
+    }
+    function downloadAll(anon) {
+      var btns = [$('dlInstructor'), $('dlResearch')], msg = $('dlMsg');
+      btns.forEach(function (b) { b.disabled = true; });
+      var say = function (t) { msg.textContent = t; };
+      say('Preparing…');
+      var comments = [], emails = {};
+      return Promise.all([loadScript('exceljs.min.js'), loadScript('jszip.min.js'), post('comments', { id: S.id }), anon ? Promise.resolve({ students: [] }) : post('roster', { id: S.id })])
+        .then(function (r) {
+          comments = r[2].comments; r[3].students.forEach(function (p) { emails[p.id] = p.email; });
+          var wb = new ExcelJS.Workbook(); wb.creator = 'TRILUME'; wb.created = new Date();
+          var used = {}, sheetName = function (n) {
+            var base = String(n).replace(/[\[\]\:\*\?\/\\']/g, ' ').slice(0, 28).trim() || 'Sheet', k = base, i = 2;
+            while (used[k.toLowerCase()]) k = base.slice(0, 26) + ' ' + i++;
+            used[k.toLowerCase()] = 1; return k;
+          };
+          var toolHead = [];
+          S.lenses.forEach(function (l) { toolHead.push(L[l].short + ' raters', L[l].short + ' ' + L[l].x.name.split(' (')[0], L[l].short + ' ' + (L[l].y.axisName || L[l].y.name), L[l].short + ' score (0-100)', 'In ' + L[l].zoneName); });
+          if (S.lenses.indexOf('insight') !== -1) toolHead.push('Insight region', 'Inside AI obvious zone');
+          var ideaRow = function (res) {
+            var row = [];
+            S.lenses.forEach(function (l) { var x = (res && res.lens[l]) || {}; row.push(x.n || 0, x.n ? f2(x.x) : '', x.n ? f2(x.y) : '', x.score == null ? '' : x.score, x.n ? (x.inZone ? 'yes' : 'no') : ''); });
+            if (S.lenses.indexOf('insight') !== -1) row.push(res && res.region ? TL.REGIONS[res.region].name : '', res && res.obvious ? (res.obvious.inside ? 'yes' : 'no') : '');
+            return row;
+          };
+          var bold = function (row) { row.font = { bold: true }; };
+          var presenters = S.students.filter(function (st) { return S.ratings.some(function (x) { return x.student_id === st.id; }) || comments.some(function (c) { return c.student_id === st.id; }); });
+          // Summary sheet
+          var sum = wb.addWorksheet('Summary');
+          sum.addRow(['TRILUME', S.title]).font = { bold: true, size: 14 };
+          sum.addRow(['Tools', S.lenses.map(function (l) { return L[l].name; }).join(', ')]);
+          sum.addRow(['Downloaded', new Date().toLocaleString()]);
+          sum.addRow(['Version', anon ? 'Research (names replaced by codes)' : 'Instructor (with names)']);
+          sum.addRow(['Note', 'Unzip the folder first. The "Open" links go to each presenter’s sheet and to the map pictures in the maps folder.']);
+          sum.addRow([]);
+          bold(sum.addRow(['Presenter', 'Idea'].concat(toolHead, ['Comments', 'Sheet'])));
+          var sheetOf = {};
+          presenters.forEach(function (st) { sheetOf[st.id] = sheetName(who(st.id, anon)); });
+          presenters.forEach(function (st) {
+            for (var k = 1; k <= S.ideasPer; k++) {
+              var res = comp.byKey[comp.key(st.id, k)], nc = comments.filter(function (c) { return c.student_id === st.id && c.slot === k; }).length;
+              if (!res && !nc) continue;
+              var row = sum.addRow([who(st.id, anon), k].concat(ideaRow(res), [nc, '']));
+              row.getCell(toolHead.length + 4).value = { text: 'Open sheet', hyperlink: "#'" + sheetOf[st.id] + "'!A1" };
+              row.getCell(toolHead.length + 4).font = { color: { argb: 'FF1D4ED8' }, underline: true };
+            }
+          });
+          sum.columns.forEach(function (c, i) { c.width = i === 0 ? 24 : i === 1 ? 8 : 16; });
+          // One sheet per presenter, with their maps
+          var zip = new JSZip(), base = fileBase() + (anon ? '_research' : '_instructor'), folder = zip.folder(base), mapsDir = folder.folder('maps');
+          var i = 0;
+          return presenters.reduce(function (chain, st) {
+            return chain.then(function () {
+              i++; say('Drawing maps ' + i + ' of ' + presenters.length + '… Please keep this page open.');
+              var label = who(st.id, anon);
+              return mapsFor(st.id, label + ' · ' + S.title, 1000).then(function (imgs) {
+                var ws = wb.addWorksheet(sheetOf[st.id]);
+                ws.addRow(['Presenter', label]).font = { bold: true, size: 13 };
+                if (!anon && emails[st.id]) ws.addRow(['Email', emails[st.id]]);
+                ws.addRow(['Session', S.title]);
+                ws.addRow([]);
+                bold(ws.addRow(['Idea'].concat(toolHead)));
+                for (var k = 1; k <= S.ideasPer; k++) ws.addRow([k].concat(ideaRow(comp.byKey[comp.key(st.id, k)])));
+                ws.addRow([]);
+                bold(ws.addRow(['Written feedback (anonymous)']));
+                bold(ws.addRow(['Idea', 'Comment']));
+                var mine = comments.filter(function (c) { return c.student_id === st.id; });
+                if (!mine.length) ws.addRow(['', '(no comments)']);
+                mine.forEach(function (c) {
+                  var row = ws.addRow([c.slot, c.text]), span = Math.max(6, Math.min(12, toolHead.length + 1));
+                  ws.mergeCells(row.number, 2, row.number, span);
+                  row.getCell(2).alignment = { wrapText: true, vertical: 'top' };
+                  row.height = Math.max(18, Math.ceil(c.text.length / 110) * 16);
+                });
+                ws.addRow([]);
+                bold(ws.addRow(['Maps']));
+                imgs.forEach(function (im) {
+                  var file = safeFile(label) + '_' + safeFile(im.label) + '.png';
+                  mapsDir.file(file, im.dataUrl.split(',')[1], { base64: true });
+                  var link = ws.addRow(['Open ' + im.label + ' (full size)']);
+                  link.getCell(1).value = { text: 'Open ' + im.label + ' (full size)', hyperlink: 'maps/' + file };
+                  link.getCell(1).font = { color: { argb: 'FF1D4ED8' }, underline: true };
+                  var width = 460, height = Math.round(width * im.h / im.w);
+                  var id = wb.addImage({ base64: im.dataUrl, extension: 'png' });
+                  var top = ws.rowCount;  // 0-based index of the next row
+                  ws.addImage(id, { tl: { col: 0, row: top }, ext: { width: width, height: height } });
+                  for (var r = 0; r < Math.ceil(height / 20) + 1; r++) ws.addRow([]);
+                });
+                ws.getColumn(1).width = 26;
+                for (var c = 2; c <= toolHead.length + 1; c++) ws.getColumn(c).width = 16;
+              });
+            });
+          }, Promise.resolve()).then(function () {
+            say('Packing the folder…');
+            return wb.xlsx.writeBuffer();
+          }).then(function (buf) {
+            folder.file(base + '.xlsx', buf);
+            folder.file(base + '_ideas.csv', '\ufeff' + csv(ideasCsv(anon)));
+            folder.file(base + '_all_ratings.csv', '\ufeff' + csv(ratingsCsv(anon)));
+            if (S.refs.length) folder.file(base + '_reference_ideas.csv', '\ufeff' + csv(refsCsv()));
+            folder.file('READ ME.txt', 'TRILUME · ' + S.title + '\r\n\r\n' + (anon ? 'Research version: names are replaced by codes (P001, P002 ...).' : 'Instructor version: with names.') +
+              '\r\n\r\n1. Unzip this folder.\r\n2. Open ' + base + '.xlsx. The Summary sheet lists every idea; each presenter has a sheet with scores, comments and maps.\r\n3. The "Open ... (full size)" links open the pictures in the maps folder.\r\n');
+            return zip.generateAsync({ type: 'blob' });
+          }).then(function (blob) {
+            var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = base + '.zip';
+            document.body.appendChild(a); a.click(); a.remove();
+            say('Downloaded ' + base + '.zip (' + presenters.length + ' presenter' + (presenters.length === 1 ? '' : 's') + '). Unzip it, then open the Excel file.');
+          });
+        })
+        .catch(function (e) { say(''); alert('Could not download: ' + e.message); })
+        .then(function () { btns.forEach(function (b) { b.disabled = false; }); });
+    }
+    $('dlInstructor').addEventListener('click', function () { downloadAll(false); });
+    $('dlResearch').addEventListener('click', function () { downloadAll(true); });
 
     $('nameTri').innerHTML = TL.triangleSvg();
     route();

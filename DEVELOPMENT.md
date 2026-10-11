@@ -123,7 +123,7 @@ Ratings are anonymous: the `token` is a random code stored on the phone, used on
 | Change the idea colours (red, blue, gold) | `IDEA_COLORS` (and `outlineFor`, the dark outline for gold) in `public/lenses.js` |
 | Change the slider (range, step, text) | `scaleHtml()` and `descText()` in `public/go.html`; the server accepts 1.0–5.0 (`score()` in `api/t.js`) |
 | Change the comment box | `renderStep()` in `public/go.html` (max 300 characters, also limited in `api/t.js`) |
-| Change the Excel download | the `dlExcel` click handler in `public/index.html` |
+| Change the downloads (ZIP, Excel with maps, CSV) | `downloadAll()` in `public/index.html` (uses `exceljs.min.js` and `jszip.min.js`, hosted in `public/` and loaded only when a download starts) |
 | Change the saved picture | `saveMap()` / `mapCanvas()` in `public/lenses.js` |
 | Change the results email (layout, text) | `buildHtml()` in `api/_email.js` |
 | Change what goes into the email | `buildEmail()` in `public/index.html` (text summary and map pictures) and the `sendResults` action in `api/t.js` |
@@ -189,6 +189,7 @@ Commits are authored by Aya only (this folder's git config is set to Aya). Never
 
 | Version | Date | Changes |
 |---|---|---|
+| 2.3 | 2026-10-11 | Downloads: one ZIP folder per click, *for instructor* (names, emails) or *for research* (codes P001…): Excel with Summary + one sheet per presenter including their map pictures and “Open … (full size)” links, a maps folder, CSV files |
 | 2.2 | 2026-10-11 | Email results: class list with name + email (Excel or rows), "Email results to presenters" card (preview, test, send all, per-student send, ✓ Sent), HTML email from the TRILUME Gmail account with logo, scores, suggestions, maps and comments (tick box, on by default); About on the public first page; RGB tool colours; "What does TRILUME mean?" triangle |
 | 2.1 | 2026-10-11 | Feedback from Prof. Chung and students: sliders (1.0–5.0) instead of number buttons; optional written comment per idea (anonymous, instructor only); maps show only each idea's average (no single-rating circles); idea colours red, blue, gold; results on students' phones on by default; Save (picture) on every map; Excel download with one sheet per presenter including comments |
 | 2.0 | 2026-10-11 | Simplified: one tool or all three (no rounds, no automatic lens assignment, no predictions, no triangle); students rate all ideas with every chosen tool; one map per tool like v3; 3D map for all three tools; AI reference ideas only for the Insight Lens, adjustable number (10–30); optional results on phones; fixes: messages no longer block buttons, full-screen QR fits the screen and closes with Esc |

@@ -418,6 +418,6 @@
     LENSES: LENSES, ORDER: ORDER, PRODUCT_TYPES: PRODUCT_TYPES, REGIONS: REGIONS, IDEA_COLORS: IDEA_COLORS,
     esc: esc, mean: mean, inZone: inZone, closeness: closeness, region: region, suggestion: suggestion, describe: describe,
     colorFor: colorFor, cloudOf: cloudOf, compute: compute, svgMap: svgMap, mount3D: mount3D, points3D: points3D,
-    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views, saveMap: saveMap, mapToPng: mapToPng, triangleSvg: triangleSvg
+    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views, saveMap: saveMap, mapToPng: mapToPng, mapCanvas: mapCanvas, triangleSvg: triangleSvg
   };
 })();
