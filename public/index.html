@@ -38,6 +38,17 @@
         <h1>TRILUME</h1>
         <p class="lead">One idea, three lenses. A peer evaluation tool for creativity in the design studio.</p>
         <div class="about" style="text-align:left;margin:4px 0 22px">
+        <div class="name-row">
+          <div>
+            <h3 style="margin-top:10px">What does TRILUME mean?</h3>
+            <ul class="small name-list">
+              <li><b>Tri</b> means <i>three</i>: the three tools (<b style="color:var(--maya)">MAYA</b>, <b style="color:var(--meta)">Metaphor</b>, <b style="color:var(--insight)">Insight</b>).</li>
+              <li><b>Lume</b> means <i>light</i>, from the Latin <i>lumen</i>, as in “illuminate” or “luminous”.</li>
+            </ul>
+            <p class="small">So <b>TRILUME</b> means <b>“three lights”</b>: one idea seen in the light of three lenses, like light through a prism.</p>
+          </div>
+          <div id="nameTri" class="name-tri"></div>
+        </div>
         <h3 style="margin-top:10px">Why TRILUME?</h3>
         <p class="small">An idea can be new but hard to accept, or beautiful but with no clear thinking behind it. Each tool sees one side: <b style="color:var(--maya)">MAYA</b> (will people accept it?), <b style="color:var(--meta)">Metaphor</b> (does the metaphor work?) and <b style="color:var(--insight)">Insight</b> (is there real thinking in it, beyond what an AI would suggest?). Together, and on the 3D map, they give a fuller and fairer picture of each idea. Students get quick, anonymous feedback on which way to develop their ideas while there is still time to change them, and instructors see the whole class at once.</p>
         <h3 style="margin-top:12px">The three tools</h3>
@@ -801,6 +812,7 @@
       download(fileBase() + '_reference_ideas.csv', rows);
     });
 
+    $('nameTri').innerHTML = TL.triangleSvg();
     route();
   })();
   </script>

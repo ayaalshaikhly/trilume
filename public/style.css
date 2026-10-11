@@ -263,3 +263,10 @@ canvas.cube:active { cursor: grabbing; }
 .save-btn { border: 1px solid var(--line); background: #fff; border-radius: 9px; padding: 4px 12px; font-weight: 700; font-size: .82rem; color: var(--ink); cursor: pointer; min-height: 34px; margin-left: auto; }
 .save-btn:hover { border-color: var(--ink); }
 .save-btn::before { content: '\2193  '; }
+
+/* About: the "three lights" triangle beside the name */
+.name-row { display: grid; grid-template-columns: 1fr 250px; gap: 18px; align-items: center; margin-bottom: 6px; }
+.name-list { margin: 4px 0 6px 18px; }
+.name-list li { margin: 3px 0; }
+.name-tri svg { width: 100%; height: auto; display: block; }
+@media (max-width: 600px) { .name-row { grid-template-columns: 1fr; } .name-tri { max-width: 260px; margin: 0 auto; } }

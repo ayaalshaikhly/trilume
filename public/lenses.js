@@ -364,10 +364,49 @@
     if (el) saveMap(el, b.dataset.title);
   });
 
+  // ---------- "Three lights" colour triangle (About page) ----------
+  // A triangle split into small pieces; each piece mixes the three tool colours by its distance
+  // to the corners, and the centre fades to white, like three lights meeting.
+  function triangleSvg() {
+    var W = 300, H = 250, A = [150, 34], B = [48, 204], C = [252, 204], N = 44;
+    var hex = function (h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; };
+    // Brighter versions of the tool colours, so the mix stays vivid (like coloured light).
+    var cA = hex('#F2662B'), cB = hex('#14A396'), cC = hex('#8B5CF6');
+    function col(a, b, c) {
+      var m = [0, 1, 2].map(function (k) { return cA[k] * a + cB[k] * b + cC[k] * c; });
+      var w = Math.pow(Math.min(a, b, c) * 3, 1.6);  // 1 at the centre, 0 on the edges
+      return 'rgb(' + m.map(function (v) { return Math.round(v + (255 - v) * w * 0.95); }).join(',') + ')';
+    }
+    function pt(a, b, c) { return [A[0] * a + B[0] * b + C[0] * c, A[1] * a + B[1] * b + C[1] * c]; }
+    var s = '<svg class="tri-name" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One idea in the light of three lenses">';
+    for (var i = 0; i < N; i++) {
+      for (var j = 0; j < N - i; j++) {
+        // upward piece
+        var p1 = [i / N, j / N], p2 = [(i + 1) / N, j / N], p3 = [i / N, (j + 1) / N];
+        var tris = [[p1, p2, p3]];
+        if (j < N - i - 1) tris.push([p2, [(i + 1) / N, (j + 1) / N], p3]);
+        tris.forEach(function (t) {
+          var ca = 0, cb = 0;
+          var pts = t.map(function (q) { ca += q[0]; cb += q[1]; return pt(1 - q[0] - q[1], q[0], q[1]).map(function (v) { return v.toFixed(1); }).join(','); });
+          ca /= 3; cb /= 3;
+          var fill = col(1 - ca - cb, ca, cb);
+          s += '<polygon points="' + pts.join(' ') + '" fill="' + fill + '" stroke="' + fill + '" stroke-width="0.9" stroke-linejoin="round"/>';
+        });
+      }
+    }
+    s += '<polygon points="' + [A, B, C].map(function (q) { return q.join(','); }).join(' ') + '" fill="none" stroke="#1f2a44" stroke-opacity="0.25" stroke-width="1.5" stroke-linejoin="round"/>';
+    var font = 'font-family="-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-weight="800" text-anchor="middle"';
+    s += '<text x="150" y="24" ' + font + ' font-size="15" fill="' + LENSES.insight.color + '">Insight</text>';
+    s += '<text x="48" y="228" ' + font + ' font-size="15" fill="' + LENSES.maya.color + '">MAYA</text>';
+    s += '<text x="252" y="228" ' + font + ' font-size="15" fill="' + LENSES.meta.color + '">Metaphor</text>';
+    s += '<text x="150" y="152" ' + font + ' font-size="17" fill="#1f2a44">Idea</text>';
+    return s + '</svg>';
+  }
+
   window.TL = {
     LENSES: LENSES, ORDER: ORDER, PRODUCT_TYPES: PRODUCT_TYPES, REGIONS: REGIONS, IDEA_COLORS: IDEA_COLORS,
     esc: esc, mean: mean, inZone: inZone, closeness: closeness, region: region, suggestion: suggestion, describe: describe,
     colorFor: colorFor, cloudOf: cloudOf, compute: compute, svgMap: svgMap, mount3D: mount3D, points3D: points3D,
-    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views, saveMap: saveMap
+    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views, saveMap: saveMap, triangleSvg: triangleSvg
   };
 })();

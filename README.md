@@ -7,6 +7,13 @@ The MAYA Lens follows Raymond Loewy's MAYA principle; the Metaphor Lens follows 
 
 **Live:** https://www.ayaalshaikhly.com/TRILUME (also `/trilume` and https://trilume.vercel.app)
 
+## What does TRILUME mean?
+
+- **Tri** means *three*: the three tools (MAYA, Metaphor, Insight).
+- **Lume** means *light*, from the Latin *lumen*, as in "illuminate" or "luminous".
+
+So **TRILUME** means **"three lights"**: one idea seen in the light of three lenses, like light through a prism.
+
 ## Why TRILUME?
 
 An idea can be new but hard to accept, or beautiful but with no clear thinking behind it. Each tool sees one side: **MAYA** (will people accept it?), **Metaphor** (does the metaphor work?) and **Insight** (is there real thinking in it, beyond what an AI would suggest?). Together, and on the 3D map, they give a fuller and fairer picture of each idea. Students get quick, anonymous feedback on which way to develop their ideas while there is still time to change them, and instructors see the whole class at once.
