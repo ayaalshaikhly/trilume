@@ -17,7 +17,7 @@
     },
     meta: {
       key: 'meta', name: 'Metaphor Lens', short: 'Metaphor', color: '#6d28d9', soft: '#f1ebfd',
-      question: 'How is the metaphor working?', credit: 'Prof. Chung’s Metaphoric Design Evaluation Matrix (V2)',
+      question: 'How is the metaphor working?', credit: 'Prof. WonJoon Chung’s Metaphoric Design Evaluation Matrix',
       zoneName: 'target metaphoric design zone', axisMin: 0,
       x: { name: 'Literalness of Representation', question: 'How directly does the design represent the visual of the source?',
         low: 'Highly Literal', high: 'Highly Abstract',
@@ -28,7 +28,7 @@
     },
     insight: {
       key: 'insight', name: 'Insight Lens', short: 'Insight', color: '#c2410c', soft: '#fdf0e7',
-      question: 'How much real thinking is in this idea?', credit: 'Aya Al-Shaikhly',
+      question: 'How much real thinking is in this idea?', credit: 'Aya Al-Shaikhly’s Insight Evaluation Matrix',
       zoneName: 'Insight zone', axisMin: 1,
       x: { name: 'Unexpectedness', question: 'Could anyone have thought of this?',
         low: 'Obvious', high: 'Very unexpected',
