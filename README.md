@@ -7,7 +7,13 @@ The MAYA Lens follows Raymond Loewy's MAYA principle; the Metaphor Lens follows 
 
 **Live:** https://www.ayaalshaikhly.com/TRILUME (also `/trilume` and https://trilume.vercel.app)
 
+## Why TRILUME?
+
+An idea can be new but hard to accept, or beautiful but with no clear thinking behind it. Each tool sees one side: **MAYA** (will people accept it?), **Metaphor** (does the metaphor work?) and **Insight** (is there real thinking in it, beyond what an AI would suggest?). Together, and on the 3D map, they give a fuller and fairer picture of each idea. Students get quick, anonymous feedback on which way to develop their ideas while there is still time to change them, and instructors see the whole class at once.
+
 ## The three tools
+
+Students rate each presenter's ideas with one tool, or with all three: the **MAYA Lens** (will people accept it? Raymond Loewy's MAYA principle), the **Metaphor Lens** (how is the metaphor working? Prof. WonJoon Chung's Metaphoric Design Evaluation Matrix) and the **Insight Lens** (how much real thinking is in it? Aya Al-Shaikhly's Insight Evaluation Matrix). With all three tools, every idea also appears on a 3D map. The Insight Lens map shows the AI obvious zone: where AI-written ideas for the same brief land.
 
 | Tool | Question | Scales (sliders, 1.0–5.0) |
 |---|---|---|

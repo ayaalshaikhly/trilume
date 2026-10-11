@@ -14,6 +14,8 @@ TRILUME is a **research instrument** for Aya Al-Shaikhly's MDes thesis on **Crea
 | Metaphor Lens | How is the metaphor working? (Literalness × Effectiveness of UP & GP) | Prof. WonJoon Chung’s Metaphoric Design Evaluation Matrix |
 | **Insight Lens** | How much real thinking is in this idea? (Unexpectedness × Depth of Reasoning) | **Aya Al-Shaikhly’s Insight Evaluation Matrix** |
 
+**Why TRILUME?** An idea can be new but hard to accept, or beautiful but with no clear thinking behind it. Each tool sees one side: **MAYA** (will people accept it?), **Metaphor** (does the metaphor work?) and **Insight** (is there real thinking in it, beyond what an AI would suggest?). Together, and on the 3D map, they give a fuller and fairer picture of each idea. Students get quick, anonymous feedback on which way to develop their ideas while there is still time to change them, and instructors see the whole class at once.
+
 Aya's own contributions are the **Insight Lens**, the **AI obvious zone** (AI-written reference ideas for the same brief, rated in a warm-up) and the **three-tool integration with the 3D map**. TRILUME is **standalone**: it does not link to the Design Evaluation Suite (v1/v2/v3) or EUREKA.
 
 **How a session works.** The instructor chooses **one tool or all three** (never two).
