@@ -3,7 +3,7 @@
 **One idea, three lenses.** A peer evaluation tool for creativity and cognitive impact in the design studio.
 
 Designed and developed by **Aya Al-Shaikhly**, School of Industrial Design, Carleton University, 2026.
-The MAYA Lens follows Raymond Loewy's MAYA principle; the Metaphor Lens follows Prof. WonJoon Chung's Metaphoric Design Evaluation Matrix (V2); the **Insight Lens** and the **AI obvious zone** are Aya Al-Shaikhly's.
+The MAYA Lens follows Raymond Loewy's MAYA principle; the Metaphor Lens follows Prof. WonJoon Chung's Metaphoric Design Evaluation Matrix; the **Insight Lens** follows **Aya Al-Shaikhly's Insight Evaluation Matrix**, with the **AI obvious zone**.
 
 **Live:** https://www.ayaalshaikhly.com/TRILUME (also `/trilume` and https://trilume.vercel.app)
 
