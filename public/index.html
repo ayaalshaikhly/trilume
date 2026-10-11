@@ -33,11 +33,19 @@
 
     <!-- ============ Passcode ============ -->
     <section id="passView" class="hidden">
-      <div class="card narrow" style="margin:40px auto;text-align:center">
+      <div class="card" style="max-width:760px;margin:30px auto;text-align:center">
         <svg viewBox="0 0 32 32" style="width:56px;height:56px;margin-bottom:10px" aria-hidden="true"><path d="M16 3 L29 27 H3 Z" fill="none" stroke="#1f2a44" stroke-width="2" stroke-linejoin="round"/><path d="M16 3 L3 27" stroke="#0f766e" stroke-width="2"/><path d="M16 3 L29 27" stroke="#6d28d9" stroke-width="2"/><path d="M3 27 H29" stroke="#c2410c" stroke-width="2"/><circle cx="16" cy="18.5" r="3.2" fill="#e3a008"/></svg>
         <h1>TRILUME</h1>
         <p class="lead">One idea, three lenses. A peer evaluation tool for creativity in the design studio.</p>
-        <form id="passForm">
+        <div class="about" style="text-align:left;margin:4px 0 22px">
+        <h3 style="margin-top:10px">Why TRILUME?</h3>
+        <p class="small">An idea can be new but hard to accept, or beautiful but with no clear thinking behind it. Each tool sees one side: <b style="color:var(--maya)">MAYA</b> (will people accept it?), <b style="color:var(--meta)">Metaphor</b> (does the metaphor work?) and <b style="color:var(--insight)">Insight</b> (is there real thinking in it, beyond what an AI would suggest?). Together, and on the 3D map, they give a fuller and fairer picture of each idea. Students get quick, anonymous feedback on which way to develop their ideas while there is still time to change them, and instructors see the whole class at once.</p>
+        <h3 style="margin-top:12px">The three tools</h3>
+        <p class="small">Students rate each presenter’s ideas with one tool, or with all three: the <b style="color:var(--maya)">MAYA Lens</b> (will people accept it? Raymond Loewy’s MAYA principle), the <b style="color:var(--meta)">Metaphor Lens</b> (how is the metaphor working? Prof. WonJoon Chung’s Metaphoric Design Evaluation Matrix) and the <b style="color:var(--insight)">Insight Lens</b> (how much real thinking is in it? Aya Al-Shaikhly’s Insight Evaluation Matrix). With all three tools, every idea also appears on a 3D map. The Insight Lens map shows the AI obvious zone: where AI-written ideas for the same brief land.</p>
+        <p class="small muted" style="margin-top:8px">Designed and developed by Aya Al-Shaikhly, School of Industrial Design, Carleton University, 2026.</p>
+        </div>
+        <h3 style="margin-bottom:10px">Instructor sign in</h3>
+        <form id="passForm" style="max-width:380px;margin:0 auto">
           <input type="password" id="passInput" placeholder="Instructor passcode" autocomplete="current-password" style="text-align:center">
           <button class="btn btn-primary btn-block btn-big" style="margin-top:12px">Enter</button>
           <p id="passErr" class="small" style="color:var(--red);margin-top:10px"></p>
@@ -70,12 +78,8 @@
         </form>
       </div>
       <div class="card">
-        <h2>About TRILUME</h2>
-        <h3 style="margin-top:10px">Why TRILUME?</h3>
-        <p class="small">An idea can be new but hard to accept, or beautiful but with no clear thinking behind it. Each tool sees one side: <b style="color:var(--maya)">MAYA</b> (will people accept it?), <b style="color:var(--meta)">Metaphor</b> (does the metaphor work?) and <b style="color:var(--insight)">Insight</b> (is there real thinking in it, beyond what an AI would suggest?). Together, and on the 3D map, they give a fuller and fairer picture of each idea. Students get quick, anonymous feedback on which way to develop their ideas while there is still time to change them, and instructors see the whole class at once.</p>
-        <h3 style="margin-top:12px">The three tools</h3>
-        <p class="small">Students rate each presenter’s ideas with one tool, or with all three: the <b style="color:var(--maya)">MAYA Lens</b> (will people accept it? Raymond Loewy’s MAYA principle), the <b style="color:var(--meta)">Metaphor Lens</b> (how is the metaphor working? Prof. WonJoon Chung’s Metaphoric Design Evaluation Matrix) and the <b style="color:var(--insight)">Insight Lens</b> (how much real thinking is in it? Aya Al-Shaikhly’s Insight Evaluation Matrix). With all three tools, every idea also appears on a 3D map. The Insight Lens map shows the AI obvious zone: where AI-written ideas for the same brief land.</p>
-        <p class="small muted" style="margin-top:8px">Designed and developed by Aya Al-Shaikhly, School of Industrial Design, Carleton University, 2026.</p>
+        <h2>Data</h2>
+        <p class="small muted">Delete every session, class list, rating and comment. This cannot be undone.</p>
         <div class="row" style="margin-top:12px"><button class="btn btn-sm btn-danger" id="eraseAll">Erase all data</button></div>
       </div>
     </section>

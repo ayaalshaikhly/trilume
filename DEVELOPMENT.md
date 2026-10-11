@@ -61,7 +61,7 @@ api/
   t.js          Every action (?action=...). Public actions for phones; instructor actions need the passcode.
   setup-db.js   Creates all tables. Safe to re-run. Open /api/setup-db after any schema change.
 public/
-  index.html    Instructor: passcode, sessions, new session, Class / Live results / Class map / Settings tabs, projector, CSV, change passcode.
+  index.html    Public first page (About TRILUME + instructor sign in), then sessions, new session, Class / Live results / Class map / Settings tabs, projector, CSV, change passcode.
   go.html       Student phone: warm-up (Insight only) → name list → rate (one tool, or three tools in steps) → optional results.
   lenses.js     Shared engine: tool definitions and wording, scoring, Insight regions, suggestions, AI cloud, SVG maps, 3D map, presenter results.
   style.css     Design. System fonts only (the domain's CSP blocks web fonts).

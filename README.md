@@ -36,7 +36,7 @@ Students rate each presenter's ideas with one tool, or with all three: the **MAY
 
 | File | What it does |
 |---|---|
-| `public/index.html` | Instructor: sessions, new session, Class / Live results / Class map / Settings tabs, projector, CSV, change passcode |
+| `public/index.html` | Public first page (About + instructor sign in); instructor: sessions, new session, Class / Live results / Class map / Settings tabs, projector, CSV, change passcode |
 | `public/go.html` | Student phone: warm-up → name list → rate (one tool, or three tools in steps) → optional results |
 | `public/lenses.js` | Tool definitions and wording, scoring, Insight regions, AI obvious zone, SVG maps, 3D map, presenter results |
 | `public/style.css` | Design (system fonts only; the domain's CSP blocks web fonts) |
