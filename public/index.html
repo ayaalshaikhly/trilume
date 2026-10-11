@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRILUME · One idea, three lenses</title>
+  <script>
+    (function () {
+      var p = window.location.pathname;
+      if (p.endsWith('/')) window.BASE = p;
+      else if (p.endsWith('.html')) window.BASE = p.substring(0, p.lastIndexOf('/') + 1);
+      else window.BASE = p + '/';
+      document.write('<base href="' + window.BASE + '">');
+    })();
+  </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16 3 L29 27 H3 Z%27 fill=%27white%27 stroke=%27%231f2a44%27 stroke-width=%273%27 stroke-linejoin=%27round%27/%3E%3Ccircle cx=%2716%27 cy=%2718.5%27 r=%274%27 fill=%27%23e3a008%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script src="lenses.js"></script>
+  <script src="qrcode.min.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="./" id="homeLink">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 L29 27 H3 Z" fill="none" stroke="#1f2a44" stroke-width="2.4" stroke-linejoin="round"/><path d="M16 3 L3 27" stroke="#0f766e" stroke-width="2.4"/><path d="M16 3 L29 27" stroke="#6d28d9" stroke-width="2.4"/><path d="M3 27 H29" stroke="#c2410c" stroke-width="2.4"/><circle cx="16" cy="18.5" r="3.2" fill="#e3a008"/></svg>
+        TRILUME
+      </a>
+      <span class="top-sub">One idea, three lenses</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <!-- ============ Passcode ============ -->
+    <section id="passView" class="hidden">
+      <div class="card narrow" style="margin:40px auto;text-align:center">
+        <svg viewBox="0 0 32 32" style="width:56px;height:56px;margin-bottom:10px" aria-hidden="true"><path d="M16 3 L29 27 H3 Z" fill="none" stroke="#1f2a44" stroke-width="2" stroke-linejoin="round"/><path d="M16 3 L3 27" stroke="#0f766e" stroke-width="2"/><path d="M16 3 L29 27" stroke="#6d28d9" stroke-width="2"/><path d="M3 27 H29" stroke="#c2410c" stroke-width="2"/><circle cx="16" cy="18.5" r="3.2" fill="#e3a008"/></svg>
+        <h1>TRILUME</h1>
+        <p class="lead">One idea, three lenses. A peer evaluation tool for creativity in the design studio.</p>
+        <form id="passForm">
+          <input type="password" id="passInput" placeholder="Instructor passcode" autocomplete="current-password" style="text-align:center">
+          <button class="btn btn-primary btn-block btn-big" style="margin-top:12px">Enter</button>
+          <p id="passErr" class="small" style="color:var(--red);margin-top:10px"></p>
+        </form>
+        <p class="muted small" style="margin-top:14px">Students don’t need this. They join by scanning the QR code.</p>
+      </div>
+    </section>
+
+    <!-- ============ Sessions ============ -->
+    <section id="homeView" class="hidden">
+      <div class="row" style="margin-bottom:18px">
+        <div>
+          <h1>Your sessions</h1>
+          <p class="muted">Each session is one class activity with one QR code.</p>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn btn-gold btn-big" id="newBtn">+ New session</button>
+      </div>
+      <div class="sess-list" id="sessList"></div>
+      <div class="card" style="margin-top:26px">
+        <h2>Instructor passcode</h2>
+        <p class="small muted">Change the passcode used to open this page. Students never need it.</p>
+        <div class="row" style="margin-top:10px"><button class="btn btn-sm" id="cpOpen">Change passcode</button></div>
+        <form id="cpForm" class="hidden" style="max-width:420px">
+          <label class="f" for="cpCur">Current passcode</label><input type="password" id="cpCur" autocomplete="current-password">
+          <label class="f" for="cpNew">New passcode <span class="muted small">(at least 4 characters)</span></label><input type="password" id="cpNew" autocomplete="new-password">
+          <label class="f" for="cpNew2">Type the new passcode again</label><input type="password" id="cpNew2" autocomplete="new-password">
+          <div class="row" style="margin-top:12px"><button class="btn btn-primary">Save new passcode</button><button type="button" class="btn" id="cpCancel">Cancel</button></div>
+          <p class="small" id="cpMsg" style="margin-top:8px"></p>
+        </form>
+      </div>
+      <div class="card">
+        <h2>About TRILUME</h2>
+        <p class="small">Each idea is seen through three lenses: the <b style="color:var(--maya)">MAYA Lens</b> (will people accept it? Raymond Loewy’s MAYA principle), the <b style="color:var(--meta)">Metaphor Lens</b> (how is the metaphor working? Prof. WonJoon Chung’s Metaphoric Design Evaluation Matrix V2) and the <b style="color:var(--insight)">Insight Lens</b> (how much real thinking is in it?). Each classmate rates with one lens, chosen automatically, so rating stays as quick as one scale pair per idea. The Insight map also shows the <b>AI obvious zone</b>: where AI-written ideas for the same brief land.</p>
+        <p class="small muted" style="margin-top:8px">Designed and developed by Aya Al-Shaikhly, School of Industrial Design, Carleton University, 2026.</p>
+        <div class="row" style="margin-top:12px"><button class="btn btn-sm btn-danger" id="eraseAll">Erase all data</button></div>
+      </div>
+    </section>
+
+    <!-- ============ New session ============ -->
+    <section id="newView" class="hidden">
+      <button class="link-btn" data-home>&larr; Back to sessions</button>
+      <h1 style="margin-bottom:4px">New session</h1>
+      <p class="lead">Four short steps. You can change everything later.</p>
+
+      <div class="card">
+        <div class="step-head"><span class="step-num">1</span><h2>Name and brief</h2></div>
+        <label class="f" for="nTitle">Session name</label>
+        <input type="text" id="nTitle" maxlength="100" placeholder="e.g. Studio 2 · Clock project · Oct 23">
+        <label class="f" for="nBrief">Design brief <span class="muted small">(the AI uses it to write reference ideas)</span></label>
+        <textarea id="nBrief" maxlength="600" placeholder="e.g. Design a wall clock inspired by nature."></textarea>
+        <label class="f">Ideas per presenter</label>
+        <div class="seg" id="nIdeas"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3" class="on">3</button></div>
+      </div>
+
+      <div class="card">
+        <div class="step-head"><span class="step-num">2</span><h2>Lenses</h2></div>
+        <p class="muted small" style="margin-bottom:12px">The Insight Lens is always on. Turn the others on or off for this project.</p>
+        <div class="lens-pick" id="nLenses"></div>
+        <div id="nProductWrap">
+          <label class="f" for="nProduct">Product type <span class="muted small">(moves the MAYA zone)</span></label>
+          <select id="nProduct"></select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="step-head"><span class="step-num">3</span><h2>Class list</h2></div>
+        <div class="row">
+          <label class="btn btn-sm" style="cursor:pointer">Upload Excel or CSV<input type="file" id="nFile" accept=".xlsx,.xls,.csv" class="hidden"></label>
+          <span class="small muted" id="nFileMsg">For example, the Brightspace class list.</span>
+        </div>
+        <label class="f" for="nNames">Or type the names, one per line</label>
+        <textarea id="nNames" placeholder="Alex Martin&#10;Sam Lee&#10;…"></textarea>
+        <p class="f-hint" id="nCount">0 names</p>
+      </div>
+
+      <div class="card">
+        <div class="step-head"><span class="step-num">4</span><h2>Reference ideas <span class="muted small" style="font-weight:500">(optional, recommended)</span></h2></div>
+        <p class="muted small" style="margin-bottom:12px">The AI writes about 24 typical ideas for your brief. In a one-minute warm-up, students rate a few of them on the Insight Lens. This draws the <b>AI obvious zone</b> on the Insight map. Only the brief is sent to the AI, never student data.</p>
+        <div class="row"><button class="btn btn-primary" id="nGen" type="button">&#10022; Write reference ideas with AI</button><span class="small muted" id="nGenMsg"></span></div>
+        <div id="nRefs" style="margin-top:12px"></div>
+      </div>
+
+      <button class="btn btn-gold btn-block btn-big" id="createBtn">Create session</button>
+    </section>
+
+    <!-- ============ One session ============ -->
+    <section id="sessView" class="hidden">
+      <button class="link-btn" data-home>&larr; All sessions</button>
+      <div class="row" style="margin-bottom:6px">
+        <h1 id="sTitle">—</h1>
+        <span class="pill" id="sRound">Round 1</span>
+      </div>
+      <p class="muted" id="sBrief" style="margin-bottom:16px"></p>
+      <div class="tabs" id="tabs">
+        <button data-tab="class" class="on">Class</button>
+        <button data-tab="live">Live results</button>
+        <button data-tab="map">Class map</button>
+        <button data-tab="summary">Summary</button>
+        <button data-tab="settings">Settings</button>
+      </div>
+
+      <!-- Class -->
+      <div data-pane="class">
+        <div class="card">
+          <h2>Students join here</h2>
+          <div class="qr-box">
+            <div class="qr" id="qrSmall"></div>
+            <div style="flex:1;min-width:240px">
+              <p class="small" style="margin-bottom:10px">Students scan this once and keep the page open. They tap a presenter’s name to rate, or “I’m presenting” to enter their own ideas and predictions.</p>
+              <div class="link-text" id="joinLink"></div>
+              <div class="row" style="margin-top:12px">
+                <button class="btn btn-primary" id="qrBig">Show QR full screen</button>
+                <button class="btn" id="copyLink">Copy link</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <h2>Round</h2>
+            <p class="small" id="roundText"></p>
+            <div class="row" style="margin-top:12px">
+              <button class="btn btn-primary" id="nextRound">Start next round</button>
+              <button class="btn btn-sm" id="prevRound">Go back a round</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Warm-up</h2>
+            <p class="small" id="warmText"></p>
+            <div class="row" style="margin-top:12px"><button class="btn btn-sm" id="warmToggle"></button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row"><h2>This round</h2><div class="spacer"></div><span class="small muted">Updates every few seconds</span></div>
+          <div style="overflow-x:auto"><table class="t" id="progress"></table></div>
+        </div>
+      </div>
+
+      <!-- Live -->
+      <div data-pane="live" class="hidden">
+        <div class="card">
+          <div class="row">
+            <div><h2>Live results for the projector</h2><p class="small muted">One presenter at a time. Ratings appear as students press Submit.</p></div>
+            <div class="spacer"></div>
+            <button class="btn btn-gold btn-big" id="openProj">Open projector view</button>
+          </div>
+        </div>
+        <div id="livePreview"></div>
+      </div>
+
+      <!-- Class map -->
+      <div data-pane="map" class="hidden">
+        <div class="card">
+          <div class="row" style="margin-bottom:12px">
+            <div class="seg" id="mapLens"></div>
+            <select id="mapRound" style="width:auto;min-height:44px"></select>
+            <div class="spacer"></div>
+            <button class="btn btn-sm" id="mapNames">Show names</button>
+          </div>
+          <div style="max-width:720px;margin:0 auto" id="classMap"></div>
+          <p class="small muted" style="margin-top:8px" id="mapNote"></p>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div data-pane="summary" class="hidden">
+        <div class="row" style="margin-bottom:12px"><select id="sumRound" style="width:auto;min-height:44px"></select></div>
+        <div id="summary"></div>
+      </div>
+
+      <!-- Settings -->
+      <div data-pane="settings" class="hidden">
+        <div class="card">
+          <h2>Session</h2>
+          <label class="f" for="eTitle">Name</label><input type="text" id="eTitle" maxlength="100">
+          <label class="f" for="eBrief">Design brief</label><textarea id="eBrief" maxlength="600"></textarea>
+          <label class="f">Ideas per presenter</label>
+          <div class="seg" id="eIdeas"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3</button></div>
+          <label class="f">Lenses</label>
+          <div class="lens-pick" id="eLenses"></div>
+          <label class="f" for="eProduct">Product type (MAYA zone)</label><select id="eProduct"></select>
+          <div class="row end" style="margin-top:14px"><button class="btn btn-primary" id="saveDetails">Save</button></div>
+        </div>
+        <div class="card">
+          <h2>Target zones</h2>
+          <p class="small muted">Move or resize the target zone of each lens.</p>
+          <div class="seg" id="zLens" style="margin:12px 0"></div>
+          <div class="grid2">
+            <div>
+              <div class="zone-row"><span>Left / right</span><input type="range" id="zCx" min="0" max="5" step="0.1"><b id="zCxV"></b></div>
+              <div class="zone-row"><span>Down / up</span><input type="range" id="zCy" min="0" max="5" step="0.1"><b id="zCyV"></b></div>
+              <div class="zone-row"><span>Size</span><input type="range" id="zR" min="0.3" max="1.6" step="0.05"><b id="zRV"></b></div>
+              <div class="row" style="margin-top:12px"><button class="btn btn-primary btn-sm" id="zSave">Save zone</button><button class="btn btn-sm" id="zReset">Reset</button></div>
+            </div>
+            <div id="zPreview" style="max-width:360px"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Class list</h2>
+          <div id="eNames" class="chips" style="margin:10px 0"></div>
+          <label class="f" for="eAdd">Add names (one per line)</label>
+          <textarea id="eAdd" style="min-height:70px"></textarea>
+          <div class="row end" style="margin-top:10px"><button class="btn btn-sm" id="eAddBtn">Add</button></div>
+        </div>
+        <div class="card">
+          <h2>Reference ideas (AI obvious zone)</h2>
+          <p class="small muted" id="eRefInfo"></p>
+          <div class="row" style="margin:12px 0"><button class="btn btn-primary btn-sm" id="eGen">&#10022; Write new ones with AI</button><span class="small muted" id="eGenMsg"></span></div>
+          <div id="eRefs"></div>
+          <p class="notice small" style="margin-top:10px">Saving new reference ideas clears the warm-up ratings they had.</p>
+          <div class="row end" style="margin-top:10px"><button class="btn btn-primary" id="eRefSave">Save reference ideas</button></div>
+        </div>
+        <div class="card">
+          <h2>Download</h2>
+          <label class="row small" style="margin:8px 0;cursor:pointer"><input type="checkbox" id="anon" checked> Replace names with codes (P001, P002…)</label>
+          <div class="row"><button class="btn" id="dlIdeas">Ideas (CSV)</button><button class="btn" id="dlRatings">All ratings (CSV)</button><button class="btn" id="dlRefs">Reference ideas (CSV)</button></div>
+        </div>
+        <div class="card"><h2>Delete</h2><p class="small muted">Removes this session with its class list and all ratings.</p><button class="btn btn-danger" id="delSess" style="margin-top:10px">Delete this session</button></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Projector -->
+  <div class="projector hidden" id="proj">
+    <div class="proj-bar">
+      <button class="btn btn-sm" id="pPrev">&larr; Previous</button>
+      <select id="pSel" style="width:auto;min-height:38px"></select>
+      <button class="btn btn-sm" id="pNext">Next &rarr;</button>
+      <select id="pRound" style="width:auto;min-height:38px"></select>
+      <span class="proj-name" id="pName"></span>
+      <span class="pill" id="pCount"></span>
+      <div class="spacer"></div>
+      <button class="btn btn-sm" id="pNames"></button>
+      <button class="btn btn-sm btn-primary" id="pClose">Close</button>
+    </div>
+    <div class="proj-body" id="pBody"></div>
+  </div>
+  <div class="big-qr hidden" id="bigQr">
+    <h1>Scan to join</h1>
+    <div id="bigQrCode"></div>
+    <div class="link-text" id="bigQrLink" style="font-size:1.1rem"></div>
+    <button class="btn btn-primary btn-big" id="bigQrClose">Close</button>
+  </div>
+
+  <script src="xlsx.full.min.js" defer></script>
+  <script>
+  (function () {
+    var L = TL.LENSES, pass = null, S = null, data = null, comp = null, tab = 'class', poll = null;
+    try { pass = sessionStorage.getItem('tl_pass'); } catch (e) {}
+
+    function $(id) { return document.getElementById(id); }
+    function post(action, body) {
+      return fetch('api/t?action=' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ passcode: pass }, body || {})) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) { var e = new Error(j.error || 'Error'); e.status = r.status; throw e; } return j; }); });
+    }
+    function getResults(id) { return fetch('api/t?action=results&id=' + encodeURIComponent(id)).then(function (r) { return r.json(); }); }
+    function show(id) {
+      ['passView', 'homeView', 'newView', 'sessView'].forEach(function (v) { $(v).classList.toggle('hidden', v !== id); });
+      if (id !== 'sessView' && poll) { clearInterval(poll); poll = null; }
+      window.scrollTo(0, 0);
+    }
+    function toast(msg) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2600); }
+    function joinUrl(id) { return location.origin + window.BASE + 'go.html?s=' + id; }
+    function nameOf(st, idx) { return S.hideNames ? 'Presenter ' + (idx + 1) : st.name; }
+
+    // ---------- Routing ----------
+    function route() {
+      if (!pass) return show('passView');
+      var id = new URLSearchParams(location.search).get('s');
+      if (id) openSession(id); else loadHome();
+    }
+    window.addEventListener('popstate', route);
+    function go(id) { history.pushState(null, '', window.BASE + (id ? '?s=' + id : '')); route(); }
+    document.querySelectorAll('[data-home]').forEach(function (b) { b.addEventListener('click', function () { go(null); }); });
+    $('homeLink').addEventListener('click', function (e) { e.preventDefault(); go(null); });
+
+    $('passForm').addEventListener('submit', function (e) {
+      e.preventDefault(); pass = $('passInput').value.trim();
+      post('check').then(function () { try { sessionStorage.setItem('tl_pass', pass); } catch (er) {} route(); })
+        .catch(function () { pass = null; $('passErr').textContent = 'That passcode is not right.'; });
+    });
+
+    // ---------- Home ----------
+    function loadHome() {
+      show('homeView');
+      post('list').then(function (rows) {
+        $('sessList').innerHTML = rows.length ? rows.map(function (s) {
+          return '<div class="sess" data-id="' + s.id + '"><div style="flex:1"><div class="s-title">' + TL.esc(s.title) + '</div>' +
+            '<div class="s-meta">' + new Date(s.createdAt).toLocaleDateString() + ' · ' + s.studentCount + ' students · ' + s.raterCount + ' phones rated · Round ' + s.round + '</div></div>' +
+            '<div class="row">' + s.lenses.map(function (l) { return '<span class="dot" title="' + L[l].name + '" style="background:' + L[l].color + '"></span>'; }).join('') + '</div><span class="muted">&rsaquo;</span></div>';
+        }).join('') : '<div class="card empty"><h2>No sessions yet</h2><p>Press “+ New session” to start.</p></div>';
+      }).catch(function (e) { if (e.status === 403) { pass = null; show('passView'); } });
+    }
+    $('cpOpen').addEventListener('click', function () { $('cpForm').classList.remove('hidden'); this.classList.add('hidden'); $('cpCur').focus(); });
+    $('cpCancel').addEventListener('click', function () { $('cpForm').reset(); $('cpForm').classList.add('hidden'); $('cpOpen').classList.remove('hidden'); $('cpMsg').textContent = ''; });
+    $('cpForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var cur = $('cpCur').value, n1 = $('cpNew').value, n2 = $('cpNew2').value, msg = $('cpMsg');
+      msg.style.color = 'var(--red)';
+      if (n1.length < 4) { msg.textContent = 'The new passcode needs at least 4 characters.'; return; }
+      if (n1 !== n2) { msg.textContent = 'The two new passcodes are not the same.'; return; }
+      fetch('api/t?action=changePass', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passcode: cur, newPass: n1 }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(r.status === 403 ? 'The current passcode is not right.' : j.error); }); })
+        .then(function () {
+          pass = n1; try { sessionStorage.setItem('tl_pass', pass); } catch (er) {}
+          $('cpForm').reset(); $('cpForm').classList.add('hidden'); $('cpOpen').classList.remove('hidden');
+          msg.textContent = ''; toast('Passcode changed. Use the new one from now on.');
+        }).catch(function (er) { msg.textContent = er.message; });
+    });
+    $('sessList').addEventListener('click', function (e) { var s = e.target.closest('.sess'); if (s) go(s.dataset.id); });
+    $('eraseAll').addEventListener('click', function () {
+      if (!confirm('Erase ALL sessions, class lists and ratings? This cannot be undone.')) return;
+      if (prompt('Type ERASE to confirm') !== 'ERASE') return;
+      post('eraseAll').then(function () { toast('All data erased.'); loadHome(); });
+    });
+
+    // ---------- Lens pickers ----------
+    function lensPicker(el, on) {
+      el.innerHTML = TL.ORDER.map(function (l) {
+        var lk = l === 'insight';
+        return '<button type="button" class="lens-opt' + (on.indexOf(l) !== -1 ? ' on' : '') + (lk ? ' locked' : '') + '" data-l="' + l + '" style="color:' + L[l].color + ';--c:' + L[l].color + ';--cs:' + L[l].soft + '">' +
+          '<div class="lo-name"><span class="tick">&#10003;</span>' + L[l].name + '</div><div class="lo-q">' + L[l].question + '</div><div class="lo-c">' + (lk ? 'Always on · ' : '') + L[l].credit + '</div></button>';
+      }).join('');
+    }
+    function pickedLenses(el) { return Array.prototype.map.call(el.querySelectorAll('.lens-opt.on'), function (b) { return b.dataset.l; }); }
+    function wirePicker(el, after) {
+      el.addEventListener('click', function (e) {
+        var b = e.target.closest('.lens-opt'); if (!b || b.dataset.l === 'insight') return;
+        b.classList.toggle('on'); if (after) after();
+      });
+    }
+    function fillProducts(sel, v) { sel.innerHTML = TL.PRODUCT_TYPES.map(function (p) { return '<option' + (p === v ? ' selected' : '') + '>' + p + '</option>'; }).join(''); }
+    function segVal(el) { var b = el.querySelector('button.on'); return b ? b.dataset.v : null; }
+    function wireSeg(el, after) { el.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; el.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); if (after) after(b.dataset.v); }); }
+
+    // ---------- Reference idea editor ----------
+    function refEditor(el, refs) {
+      el.innerHTML = (refs.length ? refs.map(function (r, i) {
+        return '<div class="ref-row"><span class="rn">' + (i + 1) + '</span><div><input type="text" class="r-t" value="' + TL.esc(r.title) + '" placeholder="Title"><input type="text" class="r-r" value="' + TL.esc(r.reasoning || '') + '" placeholder="One sentence of reasoning" style="margin-top:4px"></div><button type="button" class="x-btn" title="Remove">&times;</button></div>';
+      }).join('') : '<p class="small muted">No reference ideas yet.</p>') +
+        '<div class="row" style="margin-top:8px"><button type="button" class="btn btn-sm r-add">+ Add one</button><button type="button" class="btn btn-sm r-paste">Paste a list</button></div>';
+    }
+    function readRefs(el) {
+      return Array.prototype.map.call(el.querySelectorAll('.ref-row'), function (r) { return { title: r.querySelector('.r-t').value.trim(), reasoning: r.querySelector('.r-r').value.trim() }; })
+        .filter(function (r) { return r.title; });
+    }
+    function wireRefEditor(el) {
+      el.addEventListener('click', function (e) {
+        if (e.target.classList.contains('x-btn')) { e.target.closest('.ref-row').remove(); refEditor(el, readRefs(el)); }
+        if (e.target.classList.contains('r-add')) { var r = readRefs(el); r.push({ title: ' ', reasoning: '' }); refEditor(el, r); var ins = el.querySelectorAll('.r-t'); ins[ins.length - 1].value = ''; ins[ins.length - 1].focus(); }
+        if (e.target.classList.contains('r-paste')) {
+          var t = prompt('Paste one idea per line. Optional: "Title - reasoning".'); if (!t) return;
+          var r2 = readRefs(el);
+          t.split(/\n/).forEach(function (line) { line = line.replace(/^\s*[\d\-\*•.)]+\s*/, '').trim(); if (!line) return; var m = line.split(/\s+[-–—:]\s+/); r2.push({ title: m[0].slice(0, 120), reasoning: m.slice(1).join(' - ').slice(0, 300) }); });
+          refEditor(el, r2);
+        }
+      });
+    }
+    function generate(brief, el, msgEl, btn, done) {
+      if (!brief.trim()) { alert('Please write the design brief first (step 1).'); return; }
+      btn.disabled = true; msgEl.textContent = 'The AI is writing ideas… (about 10–20 seconds)';
+      post('generate', { brief: brief }).then(function (r) {
+        refEditor(el, r.ideas); msgEl.textContent = r.ideas.length + ' ideas written. Check them, remove any you don’t want.';
+        done({ model: r.model, prompt: r.prompt });
+      }).catch(function (e) { msgEl.textContent = e.message; })
+        .finally(function () { btn.disabled = false; });
+    }
+
+    // ---------- Class list parsing ----------
+    function namesFromRows(rows) {
+      rows = rows.filter(function (r) { return r && r.some(function (c) { return String(c).trim(); }); });
+      if (!rows.length) return [];
+      var hdr = -1, first = -1, last = -1, full = -1;
+      for (var i = 0; i < Math.min(rows.length, 6) && hdr < 0; i++) {
+        rows[i].forEach(function (c, j) {
+          var h = String(c).trim().toLowerCase();
+          if (/first\s*name|given\s*name|pr[ée]nom/.test(h)) first = j;
+          else if (/last\s*name|surname|family\s*name/.test(h)) last = j;
+          else if (/^(student\s*)?(full\s*)?names?$|^student$|^nom$/.test(h)) full = j;
+        });
+        if (first >= 0 || last >= 0 || full >= 0) hdr = i;
+      }
+      var body = hdr >= 0 ? rows.slice(hdr + 1) : rows;
+      var cell = function (r, j) { return j >= 0 && r[j] != null ? String(r[j]).trim() : ''; };
+      var out;
+      if (first >= 0 && last >= 0) out = body.map(function (r) { return (cell(r, first) + ' ' + cell(r, last)).trim(); });
+      else if (full >= 0) out = body.map(function (r) { return cell(r, full); });
+      else if (first >= 0) out = body.map(function (r) { return cell(r, first); });
+      else {
+        var best = 0, bestScore = -1, width = Math.max.apply(null, body.map(function (r) { return r.length; }));
+        for (var j = 0; j < width; j++) {
+          var score = body.filter(function (r) { var v = cell(r, j); return /[a-z]/i.test(v) && v.indexOf('@') < 0 && !/^\d+$/.test(v); }).length;
+          if (score > bestScore) { bestScore = score; best = j; }
+        }
+        out = body.map(function (r) { return cell(r, best); });
+      }
+      return out.map(function (n) { var m = n.match(/^([^,]+),\s*([^,]+)$/); return (m ? m[2] + ' ' + m[1] : n).replace(/\s+/g, ' ').trim(); })
+        .filter(function (n) { return n && /[a-z]/i.test(n) && n.indexOf('@') < 0; });
+    }
+    function lines(t) { var seen = {}; return t.split(/\n/).map(function (s) { return s.trim(); }).filter(function (s) { var k = s.toLowerCase(); if (!s || seen[k]) return false; seen[k] = 1; return true; }); }
+
+    // ---------- New session ----------
+    var newAi = {};
+    $('newBtn').addEventListener('click', function () {
+      $('nTitle').value = ''; $('nBrief').value = ''; $('nNames').value = ''; $('nCount').textContent = '0 names'; $('nGenMsg').textContent = '';
+      $('nIdeas').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === '3'); });
+      lensPicker($('nLenses'), ['maya', 'meta', 'insight']); fillProducts($('nProduct'), 'Consumer product');
+      refEditor($('nRefs'), []); newAi = {};
+      $('nProductWrap').classList.remove('hidden');
+      show('newView'); $('nTitle').focus();
+    });
+    wireSeg($('nIdeas'));
+    wirePicker($('nLenses'), function () { $('nProductWrap').classList.toggle('hidden', pickedLenses($('nLenses')).indexOf('maya') === -1); });
+    wireRefEditor($('nRefs')); wireRefEditor($('eRefs'));
+    $('nNames').addEventListener('input', function () { var n = lines(this.value).length; $('nCount').textContent = n + ' name' + (n === 1 ? '' : 's'); });
+    $('nFile').addEventListener('change', function () {
+      var f = this.files[0], msg = $('nFileMsg'); if (!f) return;
+      if (!window.XLSX) { msg.textContent = 'Still loading, please try again in a moment.'; return; }
+      var rd = new FileReader();
+      rd.onload = function (e) {
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          var names = namesFromRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }));
+          if (!names.length) throw new Error();
+          var all = lines($('nNames').value + '\n' + names.join('\n'));
+          $('nNames').value = all.join('\n'); $('nNames').dispatchEvent(new Event('input'));
+          msg.textContent = 'Found ' + names.length + ' names in ' + f.name + '. Please check them below.';
+        } catch (er) { msg.textContent = 'Could not find names in this file. Type them below instead.'; }
+      };
+      rd.readAsArrayBuffer(f); this.value = '';
+    });
+    $('nGen').addEventListener('click', function () { generate($('nBrief').value, $('nRefs'), $('nGenMsg'), this, function (ai) { newAi = ai; }); });
+    $('createBtn').addEventListener('click', function () {
+      var title = $('nTitle').value.trim(), names = lines($('nNames').value);
+      if (!title) { alert('Please give the session a name (step 1).'); return; }
+      if (names.length < 2) { alert('Please add the class list (step 3).'); return; }
+      var btn = this; btn.disabled = true; btn.textContent = 'Creating…';
+      post('create', { title: title, brief: $('nBrief').value, ideasPer: segVal($('nIdeas')), lenses: pickedLenses($('nLenses')), productType: $('nProduct').value, names: names, refs: readRefs($('nRefs')), ai: newAi })
+        .then(function (r) { go(r.id); })
+        .catch(function (e) { alert('Could not create: ' + e.message); })
+        .finally(function () { btn.disabled = false; btn.textContent = 'Create session'; });
+    });
+
+    // ---------- One session ----------
+    function openSession(id) {
+      show('sessView');
+      getResults(id).then(function (d) {
+        if (d.error) { alert('Session not found.'); return go(null); }
+        apply(d); setTab(tab);
+        if (poll) clearInterval(poll);
+        poll = setInterval(refreshData, 3000);
+      });
+    }
+    function refreshData() {
+      if (!S || document.hidden) return;
+      getResults(S.id).then(function (d) { if (!d.error && S && d.id === S.id) { apply(d); renderTab(true); } });
+    }
+    function apply(d) {
+      data = d; S = d; comp = TL.compute(d);
+      $('sTitle').textContent = d.title; $('sBrief').textContent = d.brief || '';
+      $('sRound').textContent = 'Round ' + d.round;
+    }
+    $('tabs').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setTab(b.dataset.tab); });
+    function setTab(t) {
+      tab = t;
+      $('tabs').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === t); });
+      document.querySelectorAll('[data-pane]').forEach(function (p) { p.classList.toggle('hidden', p.dataset.pane !== t); });
+      renderTab(false);
+    }
+    function renderTab(isRefresh) {
+      if (!S) return;
+      if (tab === 'class') renderClass(isRefresh);
+      if (tab === 'live') renderLivePreview();
+      if (tab === 'map') renderMap();
+      if (tab === 'summary') renderSummary();
+      if (tab === 'settings' && !isRefresh) renderSettings();
+      if (!$('proj').classList.contains('hidden')) renderProj();
+    }
+
+    // ---------- Class tab ----------
+    var qrFor = null;
+    function renderClass(isRefresh) {
+      if (qrFor !== S.id) {
+        $('qrSmall').innerHTML = '';
+        new QRCode($('qrSmall'), { text: joinUrl(S.id), width: 190, height: 190, colorDark: '#1f2a44', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+        $('joinLink').textContent = joinUrl(S.id); qrFor = S.id;
+      }
+      $('roundText').innerHTML = 'You are in <b>round ' + S.round + '</b>. ' + (S.round === 1
+        ? 'When students have developed their ideas (usually the next class), start round 2. They will then say what they changed, and the maps will show how each idea moved.'
+        : 'Students say what they changed and the maps show arrows from the last round.');
+      $('prevRound').classList.toggle('hidden', S.round === 1);
+      var rc = (S.refs || []).reduce(function (s, r) { return s + r.count; }, 0), rated = (S.refs || []).filter(function (r) { return r.count > 0; }).length;
+      $('warmText').innerHTML = (S.refs || []).length
+        ? '<b>' + rated + ' of ' + S.refs.length + '</b> reference ideas rated (' + rc + ' ratings). ' + (comp.cloud.ready ? 'The AI obvious zone is ready.' : 'The obvious zone appears once at least 3 are rated.')
+        : 'No reference ideas yet. Add them in Settings to use the warm-up and the AI obvious zone.';
+      $('warmToggle').textContent = S.warmup ? 'Turn warm-up off' : 'Turn warm-up on';
+      $('warmToggle').classList.toggle('hidden', !(S.refs || []).length);
+      var head = '<tr><th>Presenter</th><th>Ideas named</th><th>Predicted</th>' + S.lenses.map(function (l) { return '<th style="color:' + L[l].color + '">' + L[l].short + '</th>'; }).join('') + '</tr>';
+      var rows = S.students.map(function (st) {
+        var ideas = (S.ideas || []).filter(function (i) { return i.student_id === st.id && i.round === S.round; });
+        var named = ideas.filter(function (i) { return i.title; }).length, pred = ideas.filter(function (i) { return i.pred_x != null; }).length;
+        return '<tr><td><b>' + TL.esc(st.name) + '</b></td><td>' + (named || '–') + '</td><td>' + (pred || '–') + '</td>' + S.lenses.map(function (l) {
+          var n = (S.ratings || []).filter(function (r) { return r.student_id === st.id && r.round === S.round && r.lens === l && r.slot === 1; }).length;
+          return '<td>' + (n || '–') + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+      $('progress').innerHTML = head + rows;
+    }
+    $('copyLink').addEventListener('click', function () { navigator.clipboard.writeText(joinUrl(S.id)).then(function () { toast('Link copied.'); }); });
+    $('qrBig').addEventListener('click', function () {
+      $('bigQrCode').innerHTML = ''; var size = Math.min(window.innerWidth, window.innerHeight) - 220;
+      new QRCode($('bigQrCode'), { text: joinUrl(S.id), width: size, height: size, colorDark: '#1f2a44', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      $('bigQrLink').textContent = joinUrl(S.id); $('bigQr').classList.remove('hidden');
+    });
+    $('bigQrClose').addEventListener('click', function () { $('bigQr').classList.add('hidden'); });
+    $('nextRound').addEventListener('click', function () {
+      if (!confirm('Start round ' + (S.round + 1) + '? Students will rate the developed ideas again, and the maps will show how they moved.')) return;
+      post('update', { id: S.id, round: S.round + 1 }).then(function () { toast('Round ' + (S.round + 1) + ' started.'); refreshData(); });
+    });
+    $('prevRound').addEventListener('click', function () {
+      if (!confirm('Go back to round ' + (S.round - 1) + '? Ratings already given are kept.')) return;
+      post('update', { id: S.id, round: S.round - 1 }).then(refreshData);
+    });
+    $('warmToggle').addEventListener('click', function () { post('update', { id: S.id, warmup: !S.warmup }).then(refreshData); });
+
+    // ---------- Live results ----------
+    function presenterResults(st, round) {
+      var out = [];
+      for (var i = 1; i <= S.ideasPer; i++) out.push(comp.byKey[comp.key(st.id, round, i)] || { slot: i, n: 0, lens: {}, title: '' });
+      return out;
+    }
+    function renderLivePreview() {
+      var withData = S.students.filter(function (st) { return presenterResults(st, S.round).some(function (r) { return r.n; }); });
+      $('livePreview').innerHTML = withData.length ? '<p class="small muted" style="margin-bottom:10px">' + withData.length + ' presenter' + (withData.length === 1 ? ' has' : 's have') + ' ratings in round ' + S.round + '. Open the projector view to show them one at a time.</p>'
+        : '<div class="card empty"><h2>No ratings yet in round ' + S.round + '</h2><p>Ratings appear here as students press Submit.' + (latestRatedRound() && latestRatedRound() !== S.round ? ' There are ratings in round ' + latestRatedRound() + ': choose it in the projector view.' : '') + '</p></div>';
+    }
+    var pIdx = 0;
+    $('openProj').addEventListener('click', function () {
+      // Start at the first presenter who has ratings, or the most recent one.
+      var idx = 0, latest = -1;
+      (S.ratings || []).forEach(function (r) { if (r.round === S.round) { var k = S.students.findIndex(function (s) { return s.id === r.student_id; }); if (k > latest) latest = k; } });
+      pIdx = latest >= 0 ? latest : idx;
+      $('proj').classList.remove('hidden'); document.body.style.overflow = 'hidden'; renderProj();
+    });
+    $('pClose').addEventListener('click', function () { $('proj').classList.add('hidden'); document.body.style.overflow = ''; });
+    $('pPrev').addEventListener('click', function () { pIdx = Math.max(0, pIdx - 1); renderProj(); });
+    $('pNext').addEventListener('click', function () { pIdx = Math.min(S.students.length - 1, pIdx + 1); renderProj(); });
+    $('pRound').addEventListener('change', renderProj);
+    $('pSel').addEventListener('change', function () { pIdx = parseInt(this.value); renderProj(); });
+    $('pNames').addEventListener('click', function () { post('update', { id: S.id, hideNames: !S.hideNames }).then(function (d) { S.hideNames = d.hideNames; data.hideNames = d.hideNames; renderProj(); }); });
+    document.addEventListener('keydown', function (e) {
+      if ($('proj').classList.contains('hidden')) return;
+      if (e.key === 'ArrowRight') $('pNext').click();
+      if (e.key === 'ArrowLeft') $('pPrev').click();
+      if (e.key === 'Escape') $('pClose').click();
+    });
+    function renderProj() {
+      if (!S.students.length) return;
+      pIdx = Math.min(pIdx, S.students.length - 1);
+      var st = S.students[pIdx];
+      $('pSel').innerHTML = S.students.map(function (s, i) { return '<option value="' + i + '"' + (i === pIdx ? ' selected' : '') + '>' + TL.esc(nameOf(s, i)) + '</option>'; }).join('');
+      $('pName').textContent = nameOf(st, pIdx);
+      $('pNames').textContent = S.hideNames ? 'Show names' : 'Hide names';
+      fillRoundSel($('pRound'));
+      var pr = parseInt($('pRound').value) || S.round;
+      var res = presenterResults(st, pr), n = Math.max.apply(null, res.map(function (r) { return r.n ? S.lenses.reduce(function (s, l) { return s + ((r.lens[l] || {}).n || 0); }, 0) : 0; }));
+      $('pCount').textContent = n + ' rating' + (n === 1 ? '' : 's');
+      $('pBody').innerHTML = res.map(function (r) { return TL.ideaCard(r, data, comp); }).join('');
+    }
+
+    // ---------- Class map ----------
+    var mapLens = 'insight', mapNames = false, mapLensPicked = false, mapRoundPicked = false;
+    function countsFor(round) { var c = { maya: 0, meta: 0, insight: 0 }; (S.ratings || []).forEach(function (r) { if (r.round === round) c[r.lens]++; }); return c; }
+    function latestRatedRound() { var m = 0; (S.ratings || []).forEach(function (r) { m = Math.max(m, r.round); }); return m; }
+    function rounds() { var m = S.round; (S.ratings || []).forEach(function (r) { m = Math.max(m, r.round); }); var a = []; for (var i = 1; i <= m; i++) a.push(i); return a; }
+    function fillRoundSel(sel) { var v = sel.value || String(S.round); if (sel.dataset.sid !== S.id + '|' + S.round) { v = String(S.round); sel.dataset.sid = S.id + '|' + S.round; } sel.innerHTML = rounds().map(function (r) { return '<option value="' + r + '"' + (String(r) === v ? ' selected' : '') + '>Round ' + r + '</option>'; }).join(''); }
+    function renderMap() {
+      fillRoundSel($('mapRound'));
+      var cur = countsFor(S.round);
+      if (!mapRoundPicked && !(cur.maya + cur.meta + cur.insight) && latestRatedRound()) $('mapRound').value = String(latestRatedRound());
+      var round = parseInt($('mapRound').value) || S.round, items = [], cnt = countsFor(round);
+      if (S.lenses.indexOf(mapLens) === -1) mapLens = 'insight';
+      if (!mapLensPicked && !cnt[mapLens]) { var best = S.lenses.filter(function (l) { return cnt[l]; }).sort(function (a, b) { return cnt[b] - cnt[a]; })[0]; if (best) mapLens = best; }
+      $('mapLens').innerHTML = S.lenses.map(function (l) { return '<button data-l="' + l + '" class="' + (l === mapLens ? 'on' : '') + '" style="' + (l === mapLens ? 'color:' + L[l].color : '') + '">' + L[l].short + ' <span class="muted small">' + cnt[l] + '</span></button>'; }).join('');
+      S.students.forEach(function (st, i) {
+        for (var k = 1; k <= S.ideasPer; k++) {
+          var r = comp.byKey[comp.key(st.id, round, k)];
+          if (!r || !r.lens[mapLens] || !r.lens[mapLens].n) continue;
+          var it = { x: r.lens[mapLens].x, y: r.lens[mapLens].y, color: TL.colorFor(i), label: mapNames ? (S.hideNames ? 'P' + (i + 1) : st.name.split(' ')[0]) + ' ' + k : '' };
+          if (r.prev && r.prev.lens[mapLens] && r.prev.lens[mapLens].n) it.prev = { x: r.prev.lens[mapLens].x, y: r.prev.lens[mapLens].y };
+          items.push(it);
+        }
+      });
+      $('classMap').innerHTML = TL.svgMap({ lens: mapLens, zone: S.zones[mapLens], cloud: mapLens === 'insight' ? comp.cloud : null, items: items });
+      $('mapNames').textContent = mapNames ? 'Hide names' : 'Show names';
+      if (!items.length) {
+        var other = rounds().filter(function (r) { var c = countsFor(r); return r !== round && (c.maya + c.meta + c.insight); });
+        $('mapNote').textContent = 'No ' + L[mapLens].name + ' ratings in round ' + round + ' yet.' + (other.length ? ' There are ratings in round ' + other.join(', ') + ': choose it above.' : ' They appear here as students press Submit.');
+        return;
+      }
+      $('mapNote').textContent = items.length + ' ideas. Each diamond is one idea’s class average' + (round > 1 ? '; arrows show how it moved since the last round' : '') + '. Colours = presenters.' + (mapLens === 'insight' && comp.cloud.ready ? ' Grey area = AI obvious zone.' : '');
+    }
+    $('mapLens').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { mapLens = b.dataset.l; mapLensPicked = true; renderMap(); } });
+    $('mapRound').addEventListener('change', function () { mapRoundPicked = true; renderMap(); });
+    $('mapNames').addEventListener('click', function () { mapNames = !mapNames; renderMap(); });
+
+    // ---------- Summary ----------
+    function pct(a, b) { return b ? Math.round(100 * a / b) + '%' : '–'; }
+    function renderSummary() {
+      fillRoundSel($('sumRound'));
+      var round = parseInt($('sumRound').value) || S.round;
+      var rs = comp.list.filter(function (r) { return r.round === round && r.n; });
+      var withI = rs.filter(function (r) { return r.lens.insight && r.lens.insight.n; });
+      var reg = { insight: 0, almost: 0, safe: 0, wild: 0, autopilot: 0 };
+      withI.forEach(function (r) { reg[r.region]++; });
+      var obv = withI.filter(function (r) { return r.obvious; }), inObv = obv.filter(function (r) { return r.obvious.inside; }).length;
+      var gaps = rs.filter(function (r) { return r.gap != null; }).map(function (r) { return r.gap; });
+      var avgGap = gaps.length ? (gaps.reduce(function (a, b) { return a + b; }, 0) / gaps.length).toFixed(2) : '–';
+      var raters = {}; (S.ratings || []).forEach(function (r) { if (r.round === round) raters[r.student_id + '|' + r.slot + '|' + r.lens] = 1; });
+      var html = '<div class="stats">' +
+        stat(rs.length, 'ideas rated') +
+        stat(pct(reg.insight, withI.length), 'in the Insight zone') +
+        stat(obv.length ? pct(inObv, obv.length) : '–', 'inside the AI obvious zone') +
+        stat(avgGap, 'average prediction gap (Insight map)') +
+        S.lenses.filter(function (l) { return l !== 'insight'; }).map(function (l) {
+          var w = rs.filter(function (r) { return r.lens[l] && r.lens[l].n; });
+          return stat(pct(w.filter(function (r) { return r.lens[l].inZone; }).length, w.length), 'in the ' + L[l].zoneName);
+        }).join('') + '</div>';
+      html += '<div class="grid2" style="margin-top:16px"><div class="card"><h2>Insight regions</h2><table class="t">' +
+        ['insight', 'almost', 'safe', 'wild', 'autopilot'].map(function (k) { return '<tr><td>' + TL.REGIONS[k].name + '</td><td><b>' + reg[k] + '</b></td><td class="muted">' + pct(reg[k], withI.length) + '</td></tr>'; }).join('') + '</table></div>';
+      var moves = {}, srcs = {};
+      rs.forEach(function (r) { if (r.moveType) moves[r.moveType] = (moves[r.moveType] || 0) + 1; if (r.source) srcs[r.source] = (srcs[r.source] || 0) + 1; });
+      html += '<div class="card"><h2>Thinking moves</h2>' + (round === 1 ? '<p class="small muted">Recorded from round 2, when students say what they changed.</p>' :
+        '<table class="t">' + ['No change'].concat(TL.MOVES).map(function (m) { return '<tr><td>' + m + '</td><td><b>' + (moves[m] || 0) + '</b></td></tr>'; }).join('') + '</table>' +
+        '<h3 style="margin-top:14px">Where the changes came from</h3><table class="t">' + TL.SOURCES.map(function (m) { return '<tr><td>' + m + '</td><td><b>' + (srcs[m] || 0) + '</b></td></tr>'; }).join('') + '</table>') + '</div></div>';
+      $('summary').innerHTML = html;
+    }
+    function stat(v, k) { return '<div class="stat"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>'; }
+    $('sumRound').addEventListener('change', renderSummary);
+
+    // ---------- Settings ----------
+    var zl = 'insight', editAi = {};
+    function renderSettings() {
+      $('eTitle').value = S.title; $('eBrief').value = S.brief || '';
+      $('eIdeas').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === String(S.ideasPer)); });
+      lensPicker($('eLenses'), S.lenses); fillProducts($('eProduct'), S.productType);
+      renderZoneTabs(); loadZone();
+      $('eNames').innerHTML = S.students.map(function (st) { return '<span class="chip" style="cursor:default">' + TL.esc(st.name) + ' <button class="x-btn" data-rm="' + st.id + '" title="Remove" style="min-height:0;font-size:1rem">&times;</button></span>'; }).join('');
+      post('refs', { id: S.id }).then(function (r) {
+        refEditor($('eRefs'), r.refs);
+        $('eRefInfo').textContent = r.refs.length ? r.refs.length + ' reference ideas · source: ' + (S.aiModel || '–') + (S.aiDate ? ' · ' + new Date(S.aiDate).toLocaleString() : '') : 'No reference ideas yet.';
+      });
+    }
+    wireSeg($('eIdeas')); wirePicker($('eLenses'));
+    $('saveDetails').addEventListener('click', function () {
+      post('update', { id: S.id, title: $('eTitle').value, brief: $('eBrief').value, ideasPer: segVal($('eIdeas')), lenses: pickedLenses($('eLenses')), productType: $('eProduct').value })
+        .then(function () { toast('Saved.'); refreshData(); });
+    });
+    function renderZoneTabs() { $('zLens').innerHTML = S.lenses.map(function (l) { return '<button data-l="' + l + '" class="' + (l === zl ? 'on' : '') + '">' + L[l].short + '</button>'; }).join(''); }
+    $('zLens').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { zl = b.dataset.l; renderZoneTabs(); loadZone(); } });
+    function loadZone() {
+      if (S.lenses.indexOf(zl) === -1) zl = 'insight';
+      var z = S.zones[zl]; $('zCx').value = z.cx; $('zCy').value = z.cy; $('zR').value = (z.rx + z.ry) / 2; zoneInput();
+    }
+    function curZone() { var r = parseFloat($('zR').value); return { cx: parseFloat($('zCx').value), cy: parseFloat($('zCy').value), rx: r, ry: r }; }
+    function zoneInput() {
+      var z = curZone(); $('zCxV').textContent = z.cx.toFixed(1); $('zCyV').textContent = z.cy.toFixed(1); $('zRV').textContent = z.rx.toFixed(2);
+      $('zPreview').innerHTML = TL.svgMap({ lens: zl, zone: z, cloud: zl === 'insight' ? comp.cloud : null, small: true });
+    }
+    ['zCx', 'zCy', 'zR'].forEach(function (id) { $(id).addEventListener('input', zoneInput); });
+    $('zSave').addEventListener('click', function () { var z = curZone(); z.lens = zl; post('update', { id: S.id, zone: z }).then(function (d) { S.zones = d.zones; data.zones = d.zones; comp = TL.compute(data); toast('Zone saved.'); }); });
+    $('zReset').addEventListener('click', function () { post('update', { id: S.id, zone: { lens: zl, reset: true } }).then(function (d) { S.zones = d.zones; data.zones = d.zones; comp = TL.compute(data); loadZone(); toast('Zone reset.'); }); });
+    $('eNames').addEventListener('click', function (e) {
+      var id = e.target.dataset.rm; if (!id) return;
+      if (!confirm('Remove this name from the list? Their ratings are kept.')) return;
+      post('update', { id: S.id, removeStudent: id }).then(function () { refreshData(); setTimeout(renderSettings, 400); });
+    });
+    $('eAddBtn').addEventListener('click', function () {
+      var names = lines($('eAdd').value); if (!names.length) return;
+      post('update', { id: S.id, addNames: names }).then(function () { $('eAdd').value = ''; toast('Names added.'); refreshData(); setTimeout(renderSettings, 400); });
+    });
+    $('eGen').addEventListener('click', function () { generate($('eBrief').value || S.brief, $('eRefs'), $('eGenMsg'), this, function (ai) { editAi = ai; }); });
+    $('eRefSave').addEventListener('click', function () {
+      if (!confirm('Save these reference ideas? Warm-up ratings for the old ones will be cleared.')) return;
+      post('update', { id: S.id, refs: readRefs($('eRefs')), ai: editAi }).then(function () { toast('Reference ideas saved.'); editAi = {}; refreshData(); setTimeout(renderSettings, 400); });
+    });
+    $('delSess').addEventListener('click', function () {
+      if (!confirm('Delete “' + S.title + '” with all its ratings? This cannot be undone.')) return;
+      post('delete', { id: S.id }).then(function () { toast('Session deleted.'); go(null); });
+    });
+
+    // ---------- CSV ----------
+    function csv(rows) {
+      return rows.map(function (r) { return r.map(function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
+    }
+    function download(name, rows) {
+      var blob = new Blob(['﻿' + csv(rows)], { type: 'text/csv;charset=utf-8' }), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    }
+    function who(id) {
+      var i = S.students.findIndex(function (s) { return s.id === id; });
+      if ($('anon').checked) return 'P' + String(i >= 0 ? i + 1 : id).padStart(3, '0');
+      return i >= 0 ? S.students[i].name : 'removed #' + id;
+    }
+    function f2(v) { return v == null ? '' : (Math.round(v * 100) / 100); }
+    function fileBase() { return 'TRILUME_' + S.title.replace(/[^\w\-]+/g, '_').slice(0, 40); }
+    $('dlIdeas').addEventListener('click', function () {
+      var head = ['session', 'round', 'presenter', 'idea', 'title'];
+      S.lenses.forEach(function (l) { head.push(l + '_n', l + '_x', l + '_y', l + '_score', l + '_in_zone'); });
+      head.push('overall', 'insight_region', 'inside_ai_obvious_zone', 'distance_to_ai_centre', 'pred_x', 'pred_y', 'prediction_gap', 'move_type', 'change_source', 'why');
+      var rows = [head];
+      comp.list.forEach(function (r) {
+        var row = [S.title, r.round, who(r.studentId), r.slot, r.title];
+        S.lenses.forEach(function (l) { var x = r.lens[l] || {}; row.push(x.n || 0, f2(x.x), f2(x.y), x.score == null ? '' : x.score, x.n ? (x.inZone ? 1 : 0) : ''); });
+        row.push(r.overall == null ? '' : r.overall, r.region ? TL.REGIONS[r.region].name : '', r.obvious ? (r.obvious.inside ? 1 : 0) : '', r.obvious ? f2(r.obvious.dist) : '',
+          r.pred ? r.pred.x : '', r.pred ? r.pred.y : '', f2(r.gap), r.moveType, r.source, r.why);
+        rows.push(row);
+      });
+      download(fileBase() + '_ideas.csv', rows);
+    });
+    $('dlRatings').addEventListener('click', function () {
+      var rows = [['session', 'round', 'presenter', 'idea', 'lens', 'x_axis', 'x', 'y_axis', 'y']];
+      (S.ratings || []).forEach(function (r) { rows.push([S.title, r.round, who(r.student_id), r.slot, r.lens, L[r.lens].x.name, r.x, L[r.lens].y.name, r.y]); });
+      download(fileBase() + '_ratings.csv', rows);
+    });
+    $('dlRefs').addEventListener('click', function () {
+      var rows = [['n', 'title', 'ratings', 'unexpectedness_mean', 'depth_mean', 'source', 'date', 'prompt']];
+      (S.refs || []).forEach(function (r) { rows.push([r.n, r.title, r.count, f2(r.x), f2(r.y), S.aiModel, S.aiDate || '', S.aiPrompt]); });
+      download(fileBase() + '_reference_ideas.csv', rows);
+    });
+
+    route();
+  })();
+  </script>
+</body>
+</html>

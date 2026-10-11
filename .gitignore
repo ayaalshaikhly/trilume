@@ -1,0 +1,9 @@
+node_modules/
+.env*
+.vercel
+*.docx
+*.pdf
+*.txt
+
+.vercel
+.env*

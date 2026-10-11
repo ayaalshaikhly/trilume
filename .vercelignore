@@ -1,0 +1,7 @@
+*.docx
+*.pdf
+*.txt
+*.md
+.env*
+node_modules/
+deploy.sh

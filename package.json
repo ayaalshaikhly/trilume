@@ -1,0 +1,9 @@
+{
+  "name": "trilume",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TRILUME: one idea, three lenses. A peer evaluation tool for creativity and cognitive impact in the design studio (Aya Al-Shaikhly, Carleton University).",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.0"
+  }
+}

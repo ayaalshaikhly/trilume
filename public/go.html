@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ffffff">
+  <title>TRILUME</title>
+  <script>
+    (function () {
+      var p = window.location.pathname;
+      if (p.endsWith('/')) window.BASE = p;
+      else if (p.endsWith('.html')) window.BASE = p.substring(0, p.lastIndexOf('/') + 1);
+      else window.BASE = p + '/';
+      document.write('<base href="' + window.BASE + '">');
+    })();
+  </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16 3 L29 27 H3 Z%27 fill=%27white%27 stroke=%27%231f2a44%27 stroke-width=%273%27 stroke-linejoin=%27round%27/%3E%3Ccircle cx=%2716%27 cy=%2718.5%27 r=%274%27 fill=%27%23e3a008%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script src="lenses.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <span class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 L29 27 H3 Z" fill="none" stroke="#1f2a44" stroke-width="2.4" stroke-linejoin="round"/><path d="M16 3 L3 27" stroke="#0f766e" stroke-width="2.4"/><path d="M16 3 L29 27" stroke="#6d28d9" stroke-width="2.4"/><path d="M3 27 H29" stroke="#c2410c" stroke-width="2.4"/><circle cx="16" cy="18.5" r="3.2" fill="#e3a008"/></svg>
+        TRILUME
+      </span>
+      <span class="top-sub" id="sessTitle">Loading…</span>
+    </div>
+  </header>
+
+  <main class="wrap narrow">
+
+    <!-- Warm-up -->
+    <section id="warmView" class="hidden">
+      <h1>Quick warm-up</h1>
+      <p class="lead">Rate these <span id="warmCount">3</span> reference ideas with the <b style="color:#c2410c">Insight Lens</b>. It takes about a minute and helps you get used to the scale. The reference ideas were written by AI for this brief.</p>
+      <div id="warmForm"></div>
+      <button class="btn btn-primary btn-block btn-big" id="warmSubmit" disabled>Done, start rating</button>
+      <div class="row" style="justify-content:center"><button class="link-btn" id="warmSkip">Skip the warm-up</button></div>
+    </section>
+
+    <!-- Home -->
+    <section id="homeView" class="hidden">
+      <div class="seg" style="width:100%;margin-bottom:18px">
+        <button class="on" id="tabRate" style="flex:1">Rate a classmate</button>
+        <button id="tabPresent" style="flex:1">I'm presenting</button>
+      </div>
+
+      <div id="ratePane">
+        <h1>Who is presenting now?</h1>
+        <p class="lead">Tap their name. Your rating is anonymous. After each presentation, come back here and tap the next name.</p>
+        <input type="search" id="search" placeholder="Search a name…" autocomplete="off" style="margin-bottom:12px">
+        <div class="names" id="nameList"></div>
+      </div>
+
+      <div id="presentPane" class="hidden">
+        <h1>Which one is you?</h1>
+        <p class="lead">Tap your name to enter your ideas, predict where the class will place them, and see your results.</p>
+        <div id="meShortcut"></div>
+        <input type="search" id="searchMe" placeholder="Search your name…" autocomplete="off" style="margin-bottom:12px">
+        <div class="names" id="meList"></div>
+      </div>
+    </section>
+
+    <!-- Rate -->
+    <section id="rateView" class="hidden">
+      <button class="link-btn" data-back>&larr; Back to names</button>
+      <h1 id="rateName" style="margin-bottom:12px">—</h1>
+      <div class="lens-banner" id="lensBanner"></div>
+      <div id="rateForm"></div>
+      <button class="btn btn-primary btn-block btn-big" id="rateSubmit" disabled>Submit</button>
+      <p class="muted small" style="text-align:center;margin-top:10px">Feedback to help the idea grow, not a grade.</p>
+    </section>
+
+    <!-- Presenter: ideas + predictions -->
+    <section id="presentView" class="hidden">
+      <button class="link-btn" data-back>&larr; Back</button>
+      <h1 id="presentName">—</h1>
+      <p class="lead" id="presentLead">For each idea: give it a short name, then tap the map to show where you think the class will place it on the <b style="color:#c2410c">Insight Lens</b>.</p>
+      <div id="presentForm"></div>
+      <button class="btn btn-primary btn-block btn-big" id="presentSave">Save and see my results</button>
+    </section>
+
+    <!-- Presenter: results -->
+    <section id="resultsView" class="hidden">
+      <button class="link-btn" data-back>&larr; Back</button>
+      <h1>My results</h1>
+      <p class="lead"><span id="resCount">—</span> Updates live as classmates rate.</p>
+      <div id="resCards"></div>
+      <button class="btn btn-block" id="editIdeas">Edit my ideas and predictions</button>
+      <details class="card small" style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:700">How to read this</summary>
+        <p style="margin-top:8px">The <b>triangle</b> shows how close the idea is to each lens's target zone (100 = inside the zone). Each <b>map</b> shows classmates' ratings (faint dots) and their average (diamond). The grey area on the Insight map is where AI-written ideas for this brief landed. The white pin is your prediction. Every idea has potential: the suggestions show which way to develop it.</p>
+      </details>
+    </section>
+
+    <section id="errorView" class="hidden">
+      <div class="card empty">
+        <h2>Session not found</h2>
+        <p>Please scan the QR code from your instructor again.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    var sid = new URLSearchParams(location.search).get('s');
+    var S = null, view = null, current = null, assigned = null, me = null, resTimer = null;
+    var L = TL.LENSES;
+
+    function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+    var token = store('tl_token');
+    if (!token) { token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now(); store('tl_token', token); }
+    function ratedKey() { return 'tl_rated_' + sid + '_' + S.round; }
+    function rated() { try { return JSON.parse(store(ratedKey()) || '{}') || {}; } catch (e) { return {}; } }
+
+    function api(action, params, body) {
+      var url = 'api/t?action=' + action + '&id=' + encodeURIComponent(sid) + (params || '');
+      return fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ id: sid }, body)) } : {})
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Error'); return j; }); });
+    }
+    function show(id) {
+      view = id;
+      ['warmView', 'homeView', 'rateView', 'presentView', 'resultsView', 'errorView'].forEach(function (v) { document.getElementById(v).classList.toggle('hidden', v !== id); });
+      if (id !== 'resultsView' && resTimer) { clearInterval(resTimer); resTimer = null; }
+      window.scrollTo(0, 0);
+    }
+    function toast(msg) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2600); }
+
+    // ---------- Scales ----------
+    function scaleHtml(lens, axis, name) {
+      var d = L[lens][axis];
+      return '<div class="dim" data-lens="' + lens + '" data-axis="' + axis + '" data-name="' + name + '">' +
+        '<div class="dim-name">' + TL.esc(d.name) + '</div><div class="dim-q">' + TL.esc(d.question) + '</div>' +
+        '<div class="scale">' + [1, 2, 3, 4, 5].map(function (v) { return '<button type="button" data-v="' + v + '">' + v + '</button>'; }).join('') + '</div>' +
+        '<div class="scale-ends"><span>1 = ' + TL.esc(d.low) + '</span><span>5 = ' + TL.esc(d.high) + '</span></div>' +
+        '<div class="level-desc">Tap a number to see what it means.</div></div>';
+    }
+    function wireScales(root, onChange) {
+      root.addEventListener('click', function (e) {
+        var b = e.target.closest('.scale button'); if (!b) return;
+        var dim = b.closest('.dim'), lens = dim.dataset.lens, axis = dim.dataset.axis, v = b.dataset.v;
+        dim.querySelectorAll('.scale button').forEach(function (x) { x.classList.remove('on'); x.style.background = ''; x.style.borderColor = ''; });
+        b.classList.add('on'); b.style.background = L[lens].color; b.style.borderColor = L[lens].color;
+        dim.dataset.value = v;
+        var desc = dim.querySelector('.level-desc'); desc.textContent = v + ' = ' + L[lens][axis].levels[v]; desc.classList.add('chosen');
+        onChange();
+      });
+    }
+    function allChosen(root) { var d = root.querySelectorAll('.dim'); return d.length && Array.prototype.every.call(d, function (x) { return !!x.dataset.value; }); }
+    function val(root, name) { var d = root.querySelector('.dim[data-name="' + name + '"]'); return d ? parseInt(d.dataset.value) : null; }
+
+    // ---------- Load ----------
+    function load() {
+      if (!sid) return show('errorView');
+      api('get').then(function (s) {
+        S = s;
+        document.getElementById('sessTitle').textContent = s.title + (s.round > 1 ? ' · Round ' + s.round : '');
+        me = store('tl_me_' + sid);
+        if (s.warmup && s.refCount > 0 && !store('tl_warm_' + sid)) startWarmup(); else home();
+      }).catch(function () { show('errorView'); });
+    }
+
+    // ---------- Warm-up ----------
+    var warmRefs = [];
+    function startWarmup() {
+      api('warmup', '&token=' + encodeURIComponent(token)).then(function (d) {
+        warmRefs = d.refs || [];
+        if (!warmRefs.length) { store('tl_warm_' + sid, '1'); return home(); }
+        document.getElementById('warmCount').textContent = warmRefs.length;
+        document.getElementById('warmForm').innerHTML = warmRefs.map(function (r, i) {
+          return '<div class="idea-block"><h3>Reference idea ' + (i + 1) + ': ' + TL.esc(r.title) + '</h3><div class="it">' + TL.esc(r.reasoning) + '</div>' +
+            scaleHtml('insight', 'x', 'r' + r.id + 'x') + scaleHtml('insight', 'y', 'r' + r.id + 'y') + '</div>';
+        }).join('');
+        show('warmView');
+      }).catch(home);
+    }
+    wireScales(document.getElementById('warmForm'), function () { document.getElementById('warmSubmit').disabled = !allChosen(document.getElementById('warmForm')); });
+    document.getElementById('warmSubmit').addEventListener('click', function () {
+      var f = document.getElementById('warmForm'), btn = this; btn.disabled = true; btn.textContent = 'Sending…';
+      var ratings = warmRefs.map(function (r) { return { ref: r.id, x: val(f, 'r' + r.id + 'x'), y: val(f, 'r' + r.id + 'y') }; });
+      api('rateRefs', '', { token: token, ratings: ratings }).then(function () {
+        store('tl_warm_' + sid, '1'); toast('Thank you! Warm-up done.'); home();
+      }).catch(function () { btn.disabled = false; btn.textContent = 'Done, start rating'; alert('Could not send. Please check your connection and try again.'); });
+    });
+    document.getElementById('warmSkip').addEventListener('click', function () { store('tl_warm_' + sid, '1'); home(); });
+
+    // ---------- Home ----------
+    var tab = 'rate';
+    function home() { current = null; renderNames(); renderMe(); setTab(tab); show('homeView'); }
+    function setTab(t) {
+      tab = t;
+      document.getElementById('tabRate').classList.toggle('on', t === 'rate');
+      document.getElementById('tabPresent').classList.toggle('on', t === 'present');
+      document.getElementById('ratePane').classList.toggle('hidden', t !== 'rate');
+      document.getElementById('presentPane').classList.toggle('hidden', t !== 'present');
+    }
+    document.getElementById('tabRate').addEventListener('click', function () { setTab('rate'); });
+    document.getElementById('tabPresent').addEventListener('click', function () { setTab('present'); });
+
+    function renderNames() {
+      var q = document.getElementById('search').value.trim().toLowerCase(), done = rated();
+      var list = S.students.filter(function (p) { return !q || p.name.toLowerCase().indexOf(q) !== -1; });
+      document.getElementById('nameList').innerHTML = list.map(function (p) {
+        return '<button class="name-btn' + (done[p.id] ? ' rated' : '') + '" data-id="' + p.id + '"><span>' + TL.esc(p.name) + '</span>' +
+          (done[p.id] ? '<span class="done">&#10003; Rated</span>' : '<span class="muted">&rsaquo;</span>') + '</button>';
+      }).join('') || '<p class="muted">No names match.</p>';
+    }
+    function renderMe() {
+      var q = document.getElementById('searchMe').value.trim().toLowerCase();
+      var mine = me && S.students.find(function (p) { return String(p.id) === String(me); });
+      document.getElementById('meShortcut').innerHTML = mine ? '<button class="btn btn-primary btn-block btn-big" id="meGo" style="margin-bottom:14px">Continue as ' + TL.esc(mine.name) + '</button>' : '';
+      var list = S.students.filter(function (p) { return !q || p.name.toLowerCase().indexOf(q) !== -1; });
+      document.getElementById('meList').innerHTML = list.map(function (p) {
+        return '<button class="name-btn" data-id="' + p.id + '"><span>' + TL.esc(p.name) + '</span><span class="muted">&rsaquo;</span></button>';
+      }).join('') || '<p class="muted">No names match.</p>';
+    }
+    document.getElementById('search').addEventListener('input', renderNames);
+    document.getElementById('searchMe').addEventListener('input', renderMe);
+    document.getElementById('nameList').addEventListener('click', function (e) {
+      var b = e.target.closest('.name-btn'); if (!b) return;
+      var p = S.students.find(function (x) { return String(x.id) === b.dataset.id; }); if (p) openRate(p);
+    });
+    document.getElementById('meList').addEventListener('click', function (e) {
+      var b = e.target.closest('.name-btn'); if (!b) return;
+      me = b.dataset.id; store('tl_me_' + sid, me); openPresent();
+    });
+    document.getElementById('meShortcut').addEventListener('click', function (e) { if (e.target.id === 'meGo') openPresent(); });
+    document.querySelectorAll('[data-back]').forEach(function (b) { b.addEventListener('click', function () { refresh().then(home); }); });
+
+    function refresh() {
+      return api('get').then(function (s) {
+        var roundChanged = S && s.round !== S.round;
+        S = s;
+        document.getElementById('sessTitle').textContent = s.title + (s.round > 1 ? ' · Round ' + s.round : '');
+        if (view === 'homeView') { renderNames(); renderMe(); }
+        return roundChanged;
+      }).catch(function () {});
+    }
+    setInterval(function () { if (view === 'homeView') refresh(); }, 20000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && view === 'homeView') refresh(); });
+
+    // ---------- Rate ----------
+    function openRate(p) {
+      if (me && String(me) === String(p.id)) { toast('This is you. You can’t rate your own ideas.'); return; }
+      current = p;
+      Promise.all([api('assign', '&student=' + p.id + '&token=' + encodeURIComponent(token)), api('results'), refresh()]).then(function (r) {
+        assigned = r[0].lens;
+        var data = r[1], titles = {};
+        (data.ideas || []).forEach(function (i) { if (i.student_id === p.id && i.round === S.round) titles[i.slot] = i.title; });
+        var Ln = L[assigned];
+        document.getElementById('rateName').textContent = p.name;
+        var ban = document.getElementById('lensBanner');
+        ban.style.background = Ln.color;
+        ban.innerHTML = '<div class="lb-small">Your lens for ' + TL.esc(p.name.split(' ')[0]) + '</div><div class="lb-name">' + Ln.name + '</div><div class="lb-q">' + Ln.question + '</div>';
+        var html = '';
+        for (var i = 1; i <= S.ideasPer; i++) {
+          html += '<div class="idea-block">' + (S.ideasPer > 1 ? '<h3>Idea ' + i + (titles[i] ? ': ' + TL.esc(titles[i]) : '') + '</h3>' : (titles[1] ? '<h3>' + TL.esc(titles[1]) + '</h3>' : '')) +
+            scaleHtml(assigned, 'x', 'i' + i + 'x') + scaleHtml(assigned, 'y', 'i' + i + 'y') + '</div>';
+        }
+        document.getElementById('rateForm').innerHTML = html;
+        var btn = document.getElementById('rateSubmit'); btn.disabled = true; btn.textContent = 'Submit';
+        show('rateView');
+      }).catch(function () { alert('Could not open. Please check your connection.'); });
+    }
+    wireScales(document.getElementById('rateForm'), function () { document.getElementById('rateSubmit').disabled = !allChosen(document.getElementById('rateForm')); });
+    document.getElementById('rateSubmit').addEventListener('click', function () {
+      var f = document.getElementById('rateForm'), btn = this; btn.disabled = true; btn.textContent = 'Sending…';
+      var ratings = [];
+      for (var i = 1; i <= S.ideasPer; i++) ratings.push({ slot: i, x: val(f, 'i' + i + 'x'), y: val(f, 'i' + i + 'y') });
+      api('rate', '', { student: current.id, token: token, lens: assigned, ratings: ratings }).then(function () {
+        var d = rated(); d[current.id] = 1; store(ratedKey(), JSON.stringify(d));
+        toast('Thank you! Your rating for ' + current.name + ' was sent.');
+        home();
+      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Submit'; alert('Could not send: ' + e.message); });
+    });
+
+    // ---------- Presenter ----------
+    var plan = {};
+    function openPresent() {
+      Promise.all([refresh(), api('results')]).then(function (r) {
+        var data = r[1], mine = S.students.find(function (p) { return String(p.id) === String(me); });
+        if (!mine) { me = null; return home(); }
+        document.getElementById('presentName').textContent = mine.name + (S.round > 1 ? ' · Round ' + S.round : '');
+        plan = {};
+        (data.ideas || []).forEach(function (i) {
+          if (String(i.student_id) === String(me) && i.round === S.round) plan[i.slot] = { title: i.title, px: i.pred_x, py: i.pred_y, move: i.move_type, source: i.change_source, why: i.why };
+        });
+        // From round 2, carry the titles over from the last round.
+        if (S.round > 1) (data.ideas || []).forEach(function (i) {
+          if (String(i.student_id) === String(me) && i.round < S.round && !plan[i.slot]) plan[i.slot] = { title: i.title };
+        });
+        renderPresent();
+        show('presentView');
+      });
+    }
+    function padSvg(slot) {
+      var p = plan[slot] || {};
+      var items = p.px != null ? [{ x: p.px, y: p.py, color: '#333' }] : [];
+      return TL.svgMap({ lens: 'insight', zone: S.zones.insight, items: [], small: true }).replace('</svg>',
+        (p.px != null ? pin(p.px, p.py) : '') + '</svg>');
+    }
+    function pin(x, y) {
+      var X = 46 + ((x - 1) / 4) * 280, Y = 14 + 266 - ((y - 1) / 4) * 266;
+      return '<circle cx="' + X + '" cy="' + Y + '" r="9" fill="#fff" stroke="#1f2a44" stroke-width="3"/><circle cx="' + X + '" cy="' + Y + '" r="3" fill="#1f2a44"/>';
+    }
+    function renderPresent() {
+      var html = '';
+      for (var i = 1; i <= S.ideasPer; i++) {
+        var p = plan[i] || {};
+        html += '<div class="idea-block" data-slot="' + i + '"><h3>Idea ' + i + '</h3>' +
+          '<label class="f">Short name</label><input type="text" class="t-title" maxlength="80" placeholder="e.g. Moss clock" value="' + TL.esc(p.title || '') + '">';
+        if (S.round > 1) {
+          html += '<label class="f">What did you change since last time?</label><div class="chips c-move">' +
+            ['No change'].concat(TL.MOVES).map(function (m) { return '<button type="button" class="chip' + (p.move === m ? ' on' : '') + '" data-v="' + m + '">' + m + '</button>'; }).join('') + '</div>' +
+            '<div class="c-more' + (p.move && p.move !== 'No change' ? '' : ' hidden') + '"><label class="f">Where did the change come from?</label><div class="chips c-src">' +
+            TL.SOURCES.map(function (m) { return '<button type="button" class="chip' + (p.source === m ? ' on' : '') + '" data-v="' + m + '">' + m + '</button>'; }).join('') + '</div>' +
+            '<label class="f">Why did you change it? (one sentence)</label><input type="text" class="t-why" maxlength="200" value="' + TL.esc(p.why || '') + '"></div>';
+        }
+        html += '<label class="f">Where will the class place it? <span class="muted small">(tap the map)</span></label>' +
+          '<div class="pad-wrap" data-slot="' + i + '">' + padSvg(i) + '</div>' +
+          '<div class="pad-read" id="read' + i + '">' + (p.px != null ? TL.esc(TL.describe('insight', p.px, p.py)) : '<span class="muted">No prediction yet</span>') + '</div></div>';
+      }
+      document.getElementById('presentForm').innerHTML = html;
+    }
+    var pf = document.getElementById('presentForm');
+    pf.addEventListener('click', function (e) {
+      var chip = e.target.closest('.chip');
+      if (chip) {
+        var block = chip.closest('.idea-block'), slot = block.dataset.slot, group = chip.parentElement;
+        plan[slot] = plan[slot] || {};
+        group.querySelectorAll('.chip').forEach(function (c) { c.classList.toggle('on', c === chip); });
+        if (group.classList.contains('c-move')) { plan[slot].move = chip.dataset.v; block.querySelector('.c-more').classList.toggle('hidden', chip.dataset.v === 'No change'); }
+        else plan[slot].source = chip.dataset.v;
+        return;
+      }
+      var wrap = e.target.closest('.pad-wrap'); if (!wrap) return;
+      var svg = wrap.querySelector('svg'), r = svg.getBoundingClientRect();
+      var vx = (e.clientX - r.left) / r.width * 340, vy = (e.clientY - r.top) / r.height * 330;
+      var x = 1 + (vx - 46) / 280 * 4, y = 1 + (14 + 266 - vy) / 266 * 4;
+      x = Math.round(Math.min(5, Math.max(1, x)) * 10) / 10; y = Math.round(Math.min(5, Math.max(1, y)) * 10) / 10;
+      var slot = wrap.dataset.slot; plan[slot] = plan[slot] || {}; plan[slot].px = x; plan[slot].py = y;
+      wrap.innerHTML = padSvg(slot);
+      document.getElementById('read' + slot).textContent = TL.describe('insight', x, y);
+    });
+    document.getElementById('presentSave').addEventListener('click', function () {
+      var btn = this, ideas = [];
+      for (var i = 1; i <= S.ideasPer; i++) {
+        var block = pf.querySelector('.idea-block[data-slot="' + i + '"]'), p = plan[i] || {};
+        var move = p.move || '', more = move && move !== 'No change';
+        ideas.push({ slot: i, title: block.querySelector('.t-title').value, predX: p.px, predY: p.py,
+          moveType: move, source: more ? (p.source || '') : '', why: more && block.querySelector('.t-why') ? block.querySelector('.t-why').value : '' });
+      }
+      btn.disabled = true; btn.textContent = 'Saving…';
+      api('present', '', { student: parseInt(me), ideas: ideas }).then(function () {
+        btn.disabled = false; btn.textContent = 'Save and see my results';
+        toast('Saved. Present your ideas!'); openResults();
+      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Save and see my results'; alert('Could not save: ' + e.message); });
+    });
+
+    // ---------- Presenter results ----------
+    function openResults() { show('resultsView'); drawResults(); resTimer = setInterval(drawResults, 3000); }
+    function drawResults() {
+      api('results').then(function (data) {
+        if (view !== 'resultsView') return;
+        var comp = TL.compute(data), html = '', raters = 0;
+        for (var i = 1; i <= data.ideasPer; i++) {
+          var res = comp.byKey[comp.key(me, data.round, i)];
+          if (!res) res = { slot: i, n: 0, lens: {}, title: '' };
+          raters = Math.max(raters, res.n ? Object.keys(res.lens).reduce(function (s, l) { return s + (res.lens[l].n || 0); }, 0) : 0);
+          html += TL.ideaCard(res, data, comp, { foldMaps: window.innerWidth < 860 });
+        }
+        document.getElementById('resCount').textContent = raters ? raters + ' rating' + (raters === 1 ? '' : 's') + ' so far.' : 'No ratings yet.';
+        document.getElementById('resCards').innerHTML = html;
+      }).catch(function () {});
+    }
+    document.getElementById('editIdeas').addEventListener('click', openPresent);
+
+    load();
+  })();
+  </script>
+</body>
+</html>
