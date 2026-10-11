@@ -14,9 +14,14 @@ TRILUME is a **research instrument** for Aya Al-Shaikhly's MDes thesis on **Crea
 | Metaphor Lens | How is the metaphor working? (Literalness × Effectiveness of UP & GP) | Prof. WonJoon Chung (Metaphoric Design Evaluation Matrix V2) |
 | **Insight Lens** | How much real thinking is in this idea? (Unexpectedness × Depth of Reasoning) | **Aya Al-Shaikhly** |
 
-Aya's own contributions are the **Insight Lens**, the **AI obvious zone** (AI-written reference ideas for the same brief, rated in a warm-up) and the **three-lens integration**. TRILUME is **standalone**: it does not link to the Design Evaluation Suite (v1/v2/v3) or EUREKA.
+Aya's own contributions are the **Insight Lens**, the **AI obvious zone** (AI-written reference ideas for the same brief, rated in a warm-up) and the **three-tool integration with the 3D map**. TRILUME is **standalone**: it does not link to the Design Evaluation Suite (v1/v2/v3) or EUREKA.
 
-**Design rule: simple first.** Rating one presenter takes about 8 taps. Every scale point shows its meaning. The wording is always developmental ("which way to develop it"), never "good" or "bad".
+**How a session works.** The instructor chooses **one tool or all three** (never two).
+- One tool: students rate all the ideas of each presenter on that tool's two scales, exactly like the Design Evaluation Suite v3.
+- All three: students rate each presenter with MAYA, then Metaphor, then Insight (three steps, one Submit). Results show one map per tool plus a **3D map** (axes MAYA, Metaphor, Insight).
+- The AI reference ideas, warm-up and AI obvious zone exist **only with the Insight Lens**.
+
+**Design rule: simple first.** Every scale point shows its meaning. The wording is always developmental ("which way to develop it"), never "good" or "bad".
 
 ---
 
@@ -52,9 +57,9 @@ api/
   t.js          Every action (?action=...). Public actions for phones; instructor actions need the passcode.
   setup-db.js   Creates all tables. Safe to re-run. Open /api/setup-db after any schema change.
 public/
-  index.html    Instructor: passcode, sessions, new session (4 steps), Class / Live results / Class map / Summary / Settings tabs, projector, CSV, change passcode.
-  go.html       Student phone: warm-up → name list → rate with the assigned lens; "I'm presenting" → ideas + prediction pins (+ changes from round 2) → My results.
-  lenses.js     Shared engine: lens definitions and wording, scoring, Insight regions, suggestions, AI cloud, SVG maps, triangle, idea card.
+  index.html    Instructor: passcode, sessions, new session, Class / Live results / Class map / Settings tabs, projector, CSV, change passcode.
+  go.html       Student phone: warm-up (Insight only) → name list → rate (one tool, or three tools in steps) → optional results.
+  lenses.js     Shared engine: tool definitions and wording, scoring, Insight regions, suggestions, AI cloud, SVG maps, 3D map, presenter results.
   style.css     Design. System fonts only (the domain's CSP blocks web fonts).
   qrcode.min.js, xlsx.full.min.js   QR codes and Excel class lists (third-party libraries).
 deploy.sh       Deploys a git-free copy to Vercel and runs /api/setup-db.
@@ -66,36 +71,33 @@ Pages load their CSS/JS through a `document.write('<base href=...>')` line at th
 | Public (phones) | Instructor (passcode) |
 |---|---|
 | `get` session + class list | `check` passcode |
-| `assign` which lens this phone uses for a presenter | `changePass` new passcode |
-| `rate` submit ratings | `generate` AI reference ideas from the brief |
-| `warmup` 3 reference ideas to rate | `create`, `update`, `delete`, `eraseAll`, `list` |
-| `rateRefs` submit warm-up ratings | `refs` list reference ideas |
-| `present` idea names, predictions, changes | |
-| `results` everything needed to draw results (no rater tokens) | |
+| `rate` all ideas × all tools of one presenter (one Submit) | `changePass` new passcode |
+| `warmup` 3 reference ideas to rate (Insight only) | `generate` AI reference ideas from the brief (`count` 10–30) |
+| `rateRefs` submit warm-up ratings | `create`, `update`, `delete`, `eraseAll`, `list` |
+| `results` everything needed to draw results (no rater tokens) | `refs` list reference ideas |
 
 ### Database (`api/setup-db.js`)
 | Table | One row per |
 |---|---|
-| `sessions` | class activity: title, brief, product type, lenses, zones (JSON), ideas per presenter, current round, hide names, warm-up on/off, AI model/prompt/date |
+| `sessions` | class activity: title, brief, product type, lenses (`maya`, `meta`, `insight`, or all three), zones (JSON), ideas per presenter, hide names, warm-up on/off, results on phones (`live_results`), AI model/prompt/date |
 | `students` | name in the class list (`active = false` when removed; ratings are kept) |
 | `refs` | AI reference idea (title, reasoning) |
 | `ref_ratings` | warm-up rating of one reference idea by one phone (Insight Lens) |
-| `ideas` | presenter × round × slot (1–3): title, prediction (x, y), move type, change source, why |
-| `ratings` | rater phone × presenter × round × slot × lens: x, y (1–5) |
+| `ratings` | rater phone × presenter × idea (slot 1–3) × tool: x, y (1–5). The `round` column is always 1 (rounds were removed in v2) |
+| `ideas` | not used since v2 (kept so old data is not lost) |
 | `settings` | `passcode` = salt:sha256 hash |
 
-Ratings are anonymous: the `token` is a random code stored on the phone, used only to balance lenses and replace repeated answers. The API never returns it.
+Ratings are anonymous: the `token` is a random code stored on the phone, used only so that a second rating of the same presenter replaces the first. The API never returns it.
 
 ---
 
 ## 4. How the main rules work
 
-- **Lens assignment** (`assign` in `api/t.js`): for each presenter and round, a phone gets the active lens with the **fewest raters so far** (random among ties). A phone keeps the same lens for that presenter in that round.
+- **Tools** (`cleanLenses` in `api/t.js`): a session has exactly one tool or all three; two are never allowed.
 - **Score per lens** (`closeness` in `lenses.js`): 100 inside the target zone; outside, 100 − 25 × (distance from the zone's edge in scale points), never below 0. **Overall** = average of the lens scores.
 - **Insight regions** (`region` in `lenses.js`): Insight zone (inside the target circle) · Almost (both > 3) · Safe thinker (reasoning > 3, unexpectedness ≤ 3) · Wild guess (unexpectedness > 3, reasoning ≤ 3) · Autopilot (both ≤ 3).
 - **AI obvious zone** (`cloudOf` in `lenses.js`): each reference idea's position = mean of its warm-up ratings; the zone = an ellipse around their mean, one standard deviation wide (minimum 0.4); needs at least 3 rated reference ideas.
-- **Prediction gap**: distance between the presenter's pin and the class mean on the Insight map (≤ 0.75 = "well judged").
-- **Paths**: an idea in round *r* is linked to the same slot in the latest earlier round with ratings.
+- **3D map** (`mount3D`, `points3D` in `lenses.js`): across = MAYA, up = Insight, depth = Metaphor; each axis = the idea's score on that tool (0–100). Only ideas rated with all three tools appear. Drag to turn, double-click to reset.
 
 ---
 
@@ -106,8 +108,10 @@ Ratings are anonymous: the `token` is a random code stored on the phone, used on
 | Change the wording of a scale or a level | `LENSES` at the top of `public/lenses.js` (`question`, `low`, `high`, `levels`). Also update the Student Guide tables |
 | Change a suggestion text | `REGIONS` (Insight) and `suggestion()` (MAYA, Metaphor) in `public/lenses.js` |
 | Change the default target zones | `MAYA_PRESETS` and `DEFAULT_ZONES` in `api/t.js` (new sessions only; existing sessions are changed in Settings → Target zones) |
-| Change the thinking moves or change sources | `MOVES` and `SOURCES` in `public/lenses.js` |
-| Change the AI prompt or the number of reference ideas | `PROMPT` and `N_REFS` in `api/t.js` |
+| Change the AI prompt | `promptFor()` in `api/t.js` |
+| Change the choices for the number of reference ideas | `fillCounts()` in `public/index.html` (the server allows 10–30) |
+| Change the idea colours (red, blue, green) | `IDEA_COLORS` in `public/lenses.js` |
+| Change the 3D map | `draw3D()` in `public/lenses.js` |
 | Change the AI model | Vercel variable `GEMINI_MODEL`, or the `MODELS` list in `api/t.js` |
 | Change how many warm-up ideas each student rates | `LIMIT 3` in the `warmup` action (`api/t.js`) and the text in `go.html` |
 | Change colours | `:root` in `public/style.css` and `color` / `soft` in `LENSES` (`lenses.js`) |
@@ -144,7 +148,7 @@ Commits are authored by Aya only (this folder's git config is set to Aya). Never
 ## 8. Test
 
 - **Quick check:** open the live app, create a session called "Test (delete me)", open the student link on your phone, rate, check the projector, then delete the session.
-- **Full end-to-end test (used on Oct 10, 2026):** a Node script (puppeteer-core + headless Edge) that drives the instructor laptop and four separate phones through two rounds: 54 checks, all passing. Each phone needs its **own browser context** (otherwise they share one rater token). Scroll a map into view before tapping it.
+- **Full end-to-end test (v2, Oct 11, 2026):** a Node script (puppeteer-core + headless Edge) that clicks every button and checks that every phone rating is stored and shown, for a one-tool session and a three-tool session with the AI warm-up and the 3D map: 78 checks, all passing. Each phone needs its **own browser context** (otherwise they share one rater token). After a deploy, purge the crolog cache (`vercel cache purge --yes` in `C:\Users\huger\crolog`) so the website serves the new files.
 - Name every test session "(delete me)" and delete it after testing.
 
 ---
@@ -169,4 +173,5 @@ Commits are authored by Aya only (this folder's git config is set to Aya). Never
 
 | Version | Date | Changes |
 |---|---|---|
+| 2.0 | 2026-10-11 | Simplified: one tool or all three (no rounds, no automatic lens assignment, no predictions, no triangle); students rate all ideas with every chosen tool; one map per tool like v3; 3D map for all three tools; AI reference ideas only for the Insight Lens, adjustable number (10–30); optional results on phones; fixes: messages no longer block buttons, full-screen QR fits the screen and closes with Esc |
 | 1.0 | 2026-10-10 | First release: three lenses with balanced assignment, AI reference ideas (Gemini) and AI obvious zone, warm-up, prediction pins, rounds with thinking moves and sources, live projector view, class map, summary, CSV export, changeable passcode, student and instructor guides |

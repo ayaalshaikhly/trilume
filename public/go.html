@@ -31,7 +31,7 @@
 
   <main class="wrap narrow">
 
-    <!-- Warm-up -->
+    <!-- Warm-up (Insight Lens only) -->
     <section id="warmView" class="hidden">
       <h1>Quick warm-up</h1>
       <p class="lead">Rate these <span id="warmCount">3</span> reference ideas with the <b style="color:#c2410c">Insight Lens</b>. It takes about a minute and helps you get used to the scale. The reference ideas were written by AI for this brief.</p>
@@ -40,59 +40,35 @@
       <div class="row" style="justify-content:center"><button class="link-btn" id="warmSkip">Skip the warm-up</button></div>
     </section>
 
-    <!-- Home -->
-    <section id="homeView" class="hidden">
-      <div class="seg" style="width:100%;margin-bottom:18px">
-        <button class="on" id="tabRate" style="flex:1">Rate a classmate</button>
-        <button id="tabPresent" style="flex:1">I'm presenting</button>
-      </div>
-
-      <div id="ratePane">
-        <h1>Who is presenting now?</h1>
-        <p class="lead">Tap their name. Your rating is anonymous. After each presentation, come back here and tap the next name.</p>
-        <input type="search" id="search" placeholder="Search a name…" autocomplete="off" style="margin-bottom:12px">
-        <div class="names" id="nameList"></div>
-      </div>
-
-      <div id="presentPane" class="hidden">
-        <h1>Which one is you?</h1>
-        <p class="lead">Tap your name to enter your ideas, predict where the class will place them, and see your results.</p>
-        <div id="meShortcut"></div>
-        <input type="search" id="searchMe" placeholder="Search your name…" autocomplete="off" style="margin-bottom:12px">
-        <div class="names" id="meList"></div>
-      </div>
+    <!-- Name list -->
+    <section id="listView" class="hidden">
+      <h1>Who is presenting?</h1>
+      <p class="lead">Tap the presenter’s name to rate <span id="ideaWord">their ideas</span>. Your rating is anonymous. Keep this page open: after each presentation, come back here and tap the next name.</p>
+      <input type="search" id="search" placeholder="Search a name…" autocomplete="off" style="margin-bottom:12px">
+      <div class="names" id="nameList"></div>
     </section>
 
     <!-- Rate -->
     <section id="rateView" class="hidden">
-      <button class="link-btn" data-back>&larr; Back to names</button>
+      <button class="link-btn" id="rateBack">&larr; Back to the name list</button>
       <h1 id="rateName" style="margin-bottom:12px">—</h1>
+      <div class="stepper" id="stepper"></div>
       <div class="lens-banner" id="lensBanner"></div>
       <div id="rateForm"></div>
-      <button class="btn btn-primary btn-block btn-big" id="rateSubmit" disabled>Submit</button>
+      <div class="row">
+        <button class="btn btn-big" id="prevStep">&larr; Previous tool</button>
+        <button class="btn btn-primary btn-big" id="nextStep" style="flex:1" disabled>Next</button>
+      </div>
       <p class="muted small" style="text-align:center;margin-top:10px">Feedback to help the idea grow, not a grade.</p>
     </section>
 
-    <!-- Presenter: ideas + predictions -->
-    <section id="presentView" class="hidden">
-      <button class="link-btn" data-back>&larr; Back</button>
-      <h1 id="presentName">—</h1>
-      <p class="lead" id="presentLead">For each idea: give it a short name, then tap the map to show where you think the class will place it on the <b style="color:#c2410c">Insight Lens</b>.</p>
-      <div id="presentForm"></div>
-      <button class="btn btn-primary btn-block btn-big" id="presentSave">Save and see my results</button>
-    </section>
-
-    <!-- Presenter: results -->
-    <section id="resultsView" class="hidden">
-      <button class="link-btn" data-back>&larr; Back</button>
-      <h1>My results</h1>
-      <p class="lead"><span id="resCount">—</span> Updates live as classmates rate.</p>
-      <div id="resCards"></div>
-      <button class="btn btn-block" id="editIdeas">Edit my ideas and predictions</button>
-      <details class="card small" style="margin-top:16px">
-        <summary style="cursor:pointer;font-weight:700">How to read this</summary>
-        <p style="margin-top:8px">The <b>triangle</b> shows how close the idea is to each lens's target zone (100 = inside the zone). Each <b>map</b> shows classmates' ratings (faint dots) and their average (diamond). The grey area on the Insight map is where AI-written ideas for this brief landed. The white pin is your prediction. Every idea has potential: the suggestions show which way to develop it.</p>
-      </details>
+    <!-- Live results for one presenter (only when the instructor turns it on) -->
+    <section id="liveView" class="hidden">
+      <button class="link-btn" id="liveBack">&larr; Back to the name list</button>
+      <h1 id="liveName">—</h1>
+      <p class="lead" id="liveCount">—</p>
+      <div id="liveBody"></div>
+      <button class="btn btn-primary btn-block btn-big" id="liveDone" style="margin-top:14px">Back to the name list</button>
     </section>
 
     <section id="errorView" class="hidden">
@@ -106,14 +82,14 @@
   <script>
   (function () {
     var sid = new URLSearchParams(location.search).get('s');
-    var S = null, view = null, current = null, assigned = null, me = null, resTimer = null;
+    var S = null, view = null, current = null, step = 0, answers = {}, liveTimer = null, liveSig = '';
     var L = TL.LENSES;
 
     function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
     var token = store('tl_token');
     if (!token) { token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now(); store('tl_token', token); }
-    function ratedKey() { return 'tl_rated_' + sid + '_' + S.round; }
-    function rated() { try { return JSON.parse(store(ratedKey()) || '{}') || {}; } catch (e) { return {}; } }
+    var ratedKey = 'tl_rated2_' + sid;
+    function rated() { try { return JSON.parse(store(ratedKey) || '{}') || {}; } catch (e) { return {}; } }
 
     function api(action, params, body) {
       var url = 'api/t?action=' + action + '&id=' + encodeURIComponent(sid) + (params || '');
@@ -122,20 +98,23 @@
     }
     function show(id) {
       view = id;
-      ['warmView', 'homeView', 'rateView', 'presentView', 'resultsView', 'errorView'].forEach(function (v) { document.getElementById(v).classList.toggle('hidden', v !== id); });
-      if (id !== 'resultsView' && resTimer) { clearInterval(resTimer); resTimer = null; }
+      ['warmView', 'listView', 'rateView', 'liveView', 'errorView'].forEach(function (v) { document.getElementById(v).classList.toggle('hidden', v !== id); });
+      if (id !== 'liveView' && liveTimer) { clearInterval(liveTimer); liveTimer = null; }
       window.scrollTo(0, 0);
     }
     function toast(msg) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2600); }
 
     // ---------- Scales ----------
-    function scaleHtml(lens, axis, name) {
+    function scaleHtml(lens, axis, name, value) {
       var d = L[lens][axis];
-      return '<div class="dim" data-lens="' + lens + '" data-axis="' + axis + '" data-name="' + name + '">' +
+      return '<div class="dim" data-lens="' + lens + '" data-axis="' + axis + '" data-name="' + name + '"' + (value ? ' data-value="' + value + '"' : '') + '>' +
         '<div class="dim-name">' + TL.esc(d.name) + '</div><div class="dim-q">' + TL.esc(d.question) + '</div>' +
-        '<div class="scale">' + [1, 2, 3, 4, 5].map(function (v) { return '<button type="button" data-v="' + v + '">' + v + '</button>'; }).join('') + '</div>' +
+        '<div class="scale">' + [1, 2, 3, 4, 5].map(function (v) {
+          var on = String(v) === String(value);
+          return '<button type="button" data-v="' + v + '"' + (on ? ' class="on" style="background:' + L[lens].color + ';border-color:' + L[lens].color + '"' : '') + '>' + v + '</button>';
+        }).join('') + '</div>' +
         '<div class="scale-ends"><span>1 = ' + TL.esc(d.low) + '</span><span>5 = ' + TL.esc(d.high) + '</span></div>' +
-        '<div class="level-desc">Tap a number to see what it means.</div></div>';
+        '<div class="level-desc' + (value ? ' chosen' : '') + '">' + (value ? value + ' = ' + TL.esc(d.levels[value]) : 'Tap a number to see what it means.') + '</div></div>';
     }
     function wireScales(root, onChange) {
       root.addEventListener('click', function (e) {
@@ -145,20 +124,20 @@
         b.classList.add('on'); b.style.background = L[lens].color; b.style.borderColor = L[lens].color;
         dim.dataset.value = v;
         var desc = dim.querySelector('.level-desc'); desc.textContent = v + ' = ' + L[lens][axis].levels[v]; desc.classList.add('chosen');
-        onChange();
+        onChange(dim, v);
       });
     }
-    function allChosen(root) { var d = root.querySelectorAll('.dim'); return d.length && Array.prototype.every.call(d, function (x) { return !!x.dataset.value; }); }
-    function val(root, name) { var d = root.querySelector('.dim[data-name="' + name + '"]'); return d ? parseInt(d.dataset.value) : null; }
+    function allChosen(root) { var d = root.querySelectorAll('.dim'); return d.length > 0 && Array.prototype.every.call(d, function (x) { return !!x.dataset.value; }); }
 
     // ---------- Load ----------
     function load() {
       if (!sid) return show('errorView');
       api('get').then(function (s) {
         S = s;
-        document.getElementById('sessTitle').textContent = s.title + (s.round > 1 ? ' · Round ' + s.round : '');
-        me = store('tl_me_' + sid);
-        if (s.warmup && s.refCount > 0 && !store('tl_warm_' + sid)) startWarmup(); else home();
+        document.getElementById('sessTitle').textContent = s.title;
+        var n = s.ideasPer;
+        document.getElementById('ideaWord').textContent = n === 1 ? 'their idea' : 'all ' + (n === 2 ? 'two' : 'three') + ' of their ideas';
+        if (s.lenses.indexOf('insight') !== -1 && s.warmup && s.refCount > 0 && !store('tl_warm_' + sid)) startWarmup(); else toList();
       }).catch(function () { show('errorView'); });
     }
 
@@ -167,38 +146,29 @@
     function startWarmup() {
       api('warmup', '&token=' + encodeURIComponent(token)).then(function (d) {
         warmRefs = d.refs || [];
-        if (!warmRefs.length) { store('tl_warm_' + sid, '1'); return home(); }
+        if (!warmRefs.length) { store('tl_warm_' + sid, '1'); return toList(); }
         document.getElementById('warmCount').textContent = warmRefs.length;
         document.getElementById('warmForm').innerHTML = warmRefs.map(function (r, i) {
           return '<div class="idea-block"><h3>Reference idea ' + (i + 1) + ': ' + TL.esc(r.title) + '</h3><div class="it">' + TL.esc(r.reasoning) + '</div>' +
             scaleHtml('insight', 'x', 'r' + r.id + 'x') + scaleHtml('insight', 'y', 'r' + r.id + 'y') + '</div>';
         }).join('');
+        document.getElementById('warmSubmit').disabled = true;
         show('warmView');
-      }).catch(home);
+      }).catch(toList);
     }
     wireScales(document.getElementById('warmForm'), function () { document.getElementById('warmSubmit').disabled = !allChosen(document.getElementById('warmForm')); });
     document.getElementById('warmSubmit').addEventListener('click', function () {
       var f = document.getElementById('warmForm'), btn = this; btn.disabled = true; btn.textContent = 'Sending…';
-      var ratings = warmRefs.map(function (r) { return { ref: r.id, x: val(f, 'r' + r.id + 'x'), y: val(f, 'r' + r.id + 'y') }; });
+      var val = function (n) { return parseInt(f.querySelector('.dim[data-name="' + n + '"]').dataset.value); };
+      var ratings = warmRefs.map(function (r) { return { ref: r.id, x: val('r' + r.id + 'x'), y: val('r' + r.id + 'y') }; });
       api('rateRefs', '', { token: token, ratings: ratings }).then(function () {
-        store('tl_warm_' + sid, '1'); toast('Thank you! Warm-up done.'); home();
+        store('tl_warm_' + sid, '1'); btn.textContent = 'Done, start rating'; toast('Thank you! Warm-up done.'); toList();
       }).catch(function () { btn.disabled = false; btn.textContent = 'Done, start rating'; alert('Could not send. Please check your connection and try again.'); });
     });
-    document.getElementById('warmSkip').addEventListener('click', function () { store('tl_warm_' + sid, '1'); home(); });
+    document.getElementById('warmSkip').addEventListener('click', function () { store('tl_warm_' + sid, '1'); toList(); });
 
-    // ---------- Home ----------
-    var tab = 'rate';
-    function home() { current = null; renderNames(); renderMe(); setTab(tab); show('homeView'); }
-    function setTab(t) {
-      tab = t;
-      document.getElementById('tabRate').classList.toggle('on', t === 'rate');
-      document.getElementById('tabPresent').classList.toggle('on', t === 'present');
-      document.getElementById('ratePane').classList.toggle('hidden', t !== 'rate');
-      document.getElementById('presentPane').classList.toggle('hidden', t !== 'present');
-    }
-    document.getElementById('tabRate').addEventListener('click', function () { setTab('rate'); });
-    document.getElementById('tabPresent').addEventListener('click', function () { setTab('present'); });
-
+    // ---------- Name list ----------
+    function toList() { current = null; renderNames(); show('listView'); }
     function renderNames() {
       var q = document.getElementById('search').value.trim().toLowerCase(), done = rated();
       var list = S.students.filter(function (p) { return !q || p.name.toLowerCase().indexOf(q) !== -1; });
@@ -207,175 +177,90 @@
           (done[p.id] ? '<span class="done">&#10003; Rated</span>' : '<span class="muted">&rsaquo;</span>') + '</button>';
       }).join('') || '<p class="muted">No names match.</p>';
     }
-    function renderMe() {
-      var q = document.getElementById('searchMe').value.trim().toLowerCase();
-      var mine = me && S.students.find(function (p) { return String(p.id) === String(me); });
-      document.getElementById('meShortcut').innerHTML = mine ? '<button class="btn btn-primary btn-block btn-big" id="meGo" style="margin-bottom:14px">Continue as ' + TL.esc(mine.name) + '</button>' : '';
-      var list = S.students.filter(function (p) { return !q || p.name.toLowerCase().indexOf(q) !== -1; });
-      document.getElementById('meList').innerHTML = list.map(function (p) {
-        return '<button class="name-btn" data-id="' + p.id + '"><span>' + TL.esc(p.name) + '</span><span class="muted">&rsaquo;</span></button>';
-      }).join('') || '<p class="muted">No names match.</p>';
-    }
     document.getElementById('search').addEventListener('input', renderNames);
-    document.getElementById('searchMe').addEventListener('input', renderMe);
     document.getElementById('nameList').addEventListener('click', function (e) {
       var b = e.target.closest('.name-btn'); if (!b) return;
       var p = S.students.find(function (x) { return String(x.id) === b.dataset.id; }); if (p) openRate(p);
     });
-    document.getElementById('meList').addEventListener('click', function (e) {
-      var b = e.target.closest('.name-btn'); if (!b) return;
-      me = b.dataset.id; store('tl_me_' + sid, me); openPresent();
-    });
-    document.getElementById('meShortcut').addEventListener('click', function (e) { if (e.target.id === 'meGo') openPresent(); });
-    document.querySelectorAll('[data-back]').forEach(function (b) { b.addEventListener('click', function () { refresh().then(home); }); });
-
+    // Pick up names or settings the instructor changes during class.
     function refresh() {
       return api('get').then(function (s) {
-        var roundChanged = S && s.round !== S.round;
-        S = s;
-        document.getElementById('sessTitle').textContent = s.title + (s.round > 1 ? ' · Round ' + s.round : '');
-        if (view === 'homeView') { renderNames(); renderMe(); }
-        return roundChanged;
+        S = s; document.getElementById('sessTitle').textContent = s.title;
+        if (view === 'listView') renderNames();
       }).catch(function () {});
     }
-    setInterval(function () { if (view === 'homeView') refresh(); }, 20000);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden && view === 'homeView') refresh(); });
+    setInterval(function () { if (view === 'listView') refresh(); }, 20000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && view === 'listView') refresh(); });
 
-    // ---------- Rate ----------
+    // ---------- Rate: one tool, or the three tools one after another ----------
     function openRate(p) {
-      if (me && String(me) === String(p.id)) { toast('This is you. You can’t rate your own ideas.'); return; }
-      current = p;
-      Promise.all([api('assign', '&student=' + p.id + '&token=' + encodeURIComponent(token)), api('results'), refresh()]).then(function (r) {
-        assigned = r[0].lens;
-        var data = r[1], titles = {};
-        (data.ideas || []).forEach(function (i) { if (i.student_id === p.id && i.round === S.round) titles[i.slot] = i.title; });
-        var Ln = L[assigned];
-        document.getElementById('rateName').textContent = p.name;
-        var ban = document.getElementById('lensBanner');
-        ban.style.background = Ln.color;
-        ban.innerHTML = '<div class="lb-small">Your lens for ' + TL.esc(p.name.split(' ')[0]) + '</div><div class="lb-name">' + Ln.name + '</div><div class="lb-q">' + Ln.question + '</div>';
-        var html = '';
-        for (var i = 1; i <= S.ideasPer; i++) {
-          html += '<div class="idea-block">' + (S.ideasPer > 1 ? '<h3>Idea ' + i + (titles[i] ? ': ' + TL.esc(titles[i]) : '') + '</h3>' : (titles[1] ? '<h3>' + TL.esc(titles[1]) + '</h3>' : '')) +
-            scaleHtml(assigned, 'x', 'i' + i + 'x') + scaleHtml(assigned, 'y', 'i' + i + 'y') + '</div>';
-        }
-        document.getElementById('rateForm').innerHTML = html;
-        var btn = document.getElementById('rateSubmit'); btn.disabled = true; btn.textContent = 'Submit';
-        show('rateView');
-      }).catch(function () { alert('Could not open. Please check your connection.'); });
+      current = p; step = 0; answers = {};
+      document.getElementById('rateName').textContent = p.name;
+      renderStep(); show('rateView');
     }
-    wireScales(document.getElementById('rateForm'), function () { document.getElementById('rateSubmit').disabled = !allChosen(document.getElementById('rateForm')); });
-    document.getElementById('rateSubmit').addEventListener('click', function () {
-      var f = document.getElementById('rateForm'), btn = this; btn.disabled = true; btn.textContent = 'Sending…';
-      var ratings = [];
-      for (var i = 1; i <= S.ideasPer; i++) ratings.push({ slot: i, x: val(f, 'i' + i + 'x'), y: val(f, 'i' + i + 'y') });
-      api('rate', '', { student: current.id, token: token, lens: assigned, ratings: ratings }).then(function () {
-        var d = rated(); d[current.id] = 1; store(ratedKey(), JSON.stringify(d));
-        toast('Thank you! Your rating for ' + current.name + ' was sent.');
-        home();
-      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Submit'; alert('Could not send: ' + e.message); });
+    function renderStep() {
+      var lens = S.lenses[step], Ln = L[lens], many = S.lenses.length > 1, html = '';
+      document.getElementById('stepper').innerHTML = many ? S.lenses.map(function (l, i) { return '<span class="' + (i <= step ? 'done' : '') + '"></span>'; }).join('') : '';
+      var ban = document.getElementById('lensBanner');
+      ban.style.background = Ln.color;
+      ban.innerHTML = '<div class="lb-small">' + (many ? 'Tool ' + (step + 1) + ' of ' + S.lenses.length : 'Your tool') + '</div><div class="lb-name">' + Ln.name + '</div><div class="lb-q">' + Ln.question + '</div>';
+      for (var i = 1; i <= S.ideasPer; i++) {
+        var a = answers[lens + '_' + i] || {};
+        html += '<div class="idea-block">' + (S.ideasPer > 1 ? '<h3>Idea ' + i + '</h3>' : '') +
+          scaleHtml(lens, 'x', lens + '_' + i + '_x', a.x) + scaleHtml(lens, 'y', lens + '_' + i + '_y', a.y) + '</div>';
+      }
+      document.getElementById('rateForm').innerHTML = html;
+      document.getElementById('prevStep').classList.toggle('hidden', step === 0);
+      var last = step === S.lenses.length - 1, next = document.getElementById('nextStep');
+      next.textContent = last ? 'Submit' : 'Next: ' + L[S.lenses[step + 1]].name + ' →';
+      next.disabled = !allChosen(document.getElementById('rateForm'));
+      window.scrollTo(0, 0);
+    }
+    wireScales(document.getElementById('rateForm'), function (dim, v) {
+      var parts = dim.dataset.name.split('_'), k = parts[0] + '_' + parts[1];
+      answers[k] = answers[k] || {}; answers[k][parts[2]] = parseInt(v);
+      document.getElementById('nextStep').disabled = !allChosen(document.getElementById('rateForm'));
     });
-
-    // ---------- Presenter ----------
-    var plan = {};
-    function openPresent() {
-      Promise.all([refresh(), api('results')]).then(function (r) {
-        var data = r[1], mine = S.students.find(function (p) { return String(p.id) === String(me); });
-        if (!mine) { me = null; return home(); }
-        document.getElementById('presentName').textContent = mine.name + (S.round > 1 ? ' · Round ' + S.round : '');
-        plan = {};
-        (data.ideas || []).forEach(function (i) {
-          if (String(i.student_id) === String(me) && i.round === S.round) plan[i.slot] = { title: i.title, px: i.pred_x, py: i.pred_y, move: i.move_type, source: i.change_source, why: i.why };
-        });
-        // From round 2, carry the titles over from the last round.
-        if (S.round > 1) (data.ideas || []).forEach(function (i) {
-          if (String(i.student_id) === String(me) && i.round < S.round && !plan[i.slot]) plan[i.slot] = { title: i.title };
-        });
-        renderPresent();
-        show('presentView');
+    document.getElementById('prevStep').addEventListener('click', function () { if (step > 0) { step--; renderStep(); } });
+    document.getElementById('rateBack').addEventListener('click', function () {
+      if (Object.keys(answers).length && !confirm('Go back without submitting? Your scores for ' + current.name + ' will not be sent.')) return;
+      toList();
+    });
+    document.getElementById('nextStep').addEventListener('click', function () {
+      if (step < S.lenses.length - 1) { step++; renderStep(); return; }
+      var btn = this, ratings = [];
+      S.lenses.forEach(function (l) {
+        for (var i = 1; i <= S.ideasPer; i++) { var a = answers[l + '_' + i]; ratings.push({ lens: l, slot: i, x: a.x, y: a.y }); }
       });
-    }
-    function padSvg(slot) {
-      var p = plan[slot] || {};
-      var items = p.px != null ? [{ x: p.px, y: p.py, color: '#333' }] : [];
-      return TL.svgMap({ lens: 'insight', zone: S.zones.insight, items: [], small: true }).replace('</svg>',
-        (p.px != null ? pin(p.px, p.py) : '') + '</svg>');
-    }
-    function pin(x, y) {
-      var X = 46 + ((x - 1) / 4) * 280, Y = 14 + 266 - ((y - 1) / 4) * 266;
-      return '<circle cx="' + X + '" cy="' + Y + '" r="9" fill="#fff" stroke="#1f2a44" stroke-width="3"/><circle cx="' + X + '" cy="' + Y + '" r="3" fill="#1f2a44"/>';
-    }
-    function renderPresent() {
-      var html = '';
-      for (var i = 1; i <= S.ideasPer; i++) {
-        var p = plan[i] || {};
-        html += '<div class="idea-block" data-slot="' + i + '"><h3>Idea ' + i + '</h3>' +
-          '<label class="f">Short name</label><input type="text" class="t-title" maxlength="80" placeholder="e.g. Moss clock" value="' + TL.esc(p.title || '') + '">';
-        if (S.round > 1) {
-          html += '<label class="f">What did you change since last time?</label><div class="chips c-move">' +
-            ['No change'].concat(TL.MOVES).map(function (m) { return '<button type="button" class="chip' + (p.move === m ? ' on' : '') + '" data-v="' + m + '">' + m + '</button>'; }).join('') + '</div>' +
-            '<div class="c-more' + (p.move && p.move !== 'No change' ? '' : ' hidden') + '"><label class="f">Where did the change come from?</label><div class="chips c-src">' +
-            TL.SOURCES.map(function (m) { return '<button type="button" class="chip' + (p.source === m ? ' on' : '') + '" data-v="' + m + '">' + m + '</button>'; }).join('') + '</div>' +
-            '<label class="f">Why did you change it? (one sentence)</label><input type="text" class="t-why" maxlength="200" value="' + TL.esc(p.why || '') + '"></div>';
-        }
-        html += '<label class="f">Where will the class place it? <span class="muted small">(tap the map)</span></label>' +
-          '<div class="pad-wrap" data-slot="' + i + '">' + padSvg(i) + '</div>' +
-          '<div class="pad-read" id="read' + i + '">' + (p.px != null ? TL.esc(TL.describe('insight', p.px, p.py)) : '<span class="muted">No prediction yet</span>') + '</div></div>';
-      }
-      document.getElementById('presentForm').innerHTML = html;
-    }
-    var pf = document.getElementById('presentForm');
-    pf.addEventListener('click', function (e) {
-      var chip = e.target.closest('.chip');
-      if (chip) {
-        var block = chip.closest('.idea-block'), slot = block.dataset.slot, group = chip.parentElement;
-        plan[slot] = plan[slot] || {};
-        group.querySelectorAll('.chip').forEach(function (c) { c.classList.toggle('on', c === chip); });
-        if (group.classList.contains('c-move')) { plan[slot].move = chip.dataset.v; block.querySelector('.c-more').classList.toggle('hidden', chip.dataset.v === 'No change'); }
-        else plan[slot].source = chip.dataset.v;
-        return;
-      }
-      var wrap = e.target.closest('.pad-wrap'); if (!wrap) return;
-      var svg = wrap.querySelector('svg'), r = svg.getBoundingClientRect();
-      var vx = (e.clientX - r.left) / r.width * 340, vy = (e.clientY - r.top) / r.height * 330;
-      var x = 1 + (vx - 46) / 280 * 4, y = 1 + (14 + 266 - vy) / 266 * 4;
-      x = Math.round(Math.min(5, Math.max(1, x)) * 10) / 10; y = Math.round(Math.min(5, Math.max(1, y)) * 10) / 10;
-      var slot = wrap.dataset.slot; plan[slot] = plan[slot] || {}; plan[slot].px = x; plan[slot].py = y;
-      wrap.innerHTML = padSvg(slot);
-      document.getElementById('read' + slot).textContent = TL.describe('insight', x, y);
-    });
-    document.getElementById('presentSave').addEventListener('click', function () {
-      var btn = this, ideas = [];
-      for (var i = 1; i <= S.ideasPer; i++) {
-        var block = pf.querySelector('.idea-block[data-slot="' + i + '"]'), p = plan[i] || {};
-        var move = p.move || '', more = move && move !== 'No change';
-        ideas.push({ slot: i, title: block.querySelector('.t-title').value, predX: p.px, predY: p.py,
-          moveType: move, source: more ? (p.source || '') : '', why: more && block.querySelector('.t-why') ? block.querySelector('.t-why').value : '' });
-      }
-      btn.disabled = true; btn.textContent = 'Saving…';
-      api('present', '', { student: parseInt(me), ideas: ideas }).then(function () {
-        btn.disabled = false; btn.textContent = 'Save and see my results';
-        toast('Saved. Present your ideas!'); openResults();
-      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Save and see my results'; alert('Could not save: ' + e.message); });
+      btn.disabled = true; btn.textContent = 'Sending…';
+      api('rate', '', { student: current.id, token: token, ratings: ratings }).then(function () {
+        var d = rated(); d[current.id] = 1; store(ratedKey, JSON.stringify(d));
+        toast('Thank you! Your rating for ' + current.name + ' was sent.');
+        return refresh().then(function () { if (S.liveResults) openLive(current); else toList(); });
+      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Submit'; alert('Could not send: ' + e.message + '. Please check your connection and press Submit again.'); });
     });
 
-    // ---------- Presenter results ----------
-    function openResults() { show('resultsView'); drawResults(); resTimer = setInterval(drawResults, 3000); }
-    function drawResults() {
+    // ---------- Live results on the phone (instructor setting) ----------
+    function openLive(p) {
+      current = p; liveSig = '';
+      document.getElementById('liveName').textContent = p.name;
+      show('liveView'); drawLive(); liveTimer = setInterval(drawLive, 3000);
+    }
+    function drawLive() {
       api('results').then(function (data) {
-        if (view !== 'resultsView') return;
-        var comp = TL.compute(data), html = '', raters = 0;
-        for (var i = 1; i <= data.ideasPer; i++) {
-          var res = comp.byKey[comp.key(me, data.round, i)];
-          if (!res) res = { slot: i, n: 0, lens: {}, title: '' };
-          raters = Math.max(raters, res.n ? Object.keys(res.lens).reduce(function (s, l) { return s + (res.lens[l].n || 0); }, 0) : 0);
-          html += TL.ideaCard(res, data, comp, { foldMaps: window.innerWidth < 860 });
-        }
-        document.getElementById('resCount').textContent = raters ? raters + ' rating' + (raters === 1 ? '' : 's') + ' so far.' : 'No ratings yet.';
-        document.getElementById('resCards').innerHTML = html;
+        if (view !== 'liveView' || !current) return;
+        var mine = data.ratings.filter(function (r) { return r.student_id === current.id; });
+        var sig = mine.length + '|' + JSON.stringify(data.zones) + '|' + window.innerWidth;
+        if (sig === liveSig) return; liveSig = sig;
+        var comp = TL.compute(data), raters = mine.filter(function (r) { return r.slot === 1 && r.lens === data.lenses[0]; }).length;
+        document.getElementById('liveCount').textContent = raters + ' classmate' + (raters === 1 ? '' : 's') + ' rated so far. It updates as others rate. Feedback to help the idea grow, not a grade.';
+        var body = document.getElementById('liveBody');
+        body.innerHTML = TL.presenterHtml(data, comp, current.id, { cubeKey: 'phone' });
+        TL.mountPresenterCube(body, data, comp, current.id, 'phone');
       }).catch(function () {});
     }
-    document.getElementById('editIdeas').addEventListener('click', openPresent);
+    document.getElementById('liveBack').addEventListener('click', toList);
+    document.getElementById('liveDone').addEventListener('click', toList);
 
     load();
   })();

@@ -79,6 +79,7 @@ module.exports = async function handler(req, res) {
         UNIQUE (session_id, student_id, round, slot, lens, token)
       )`;
     await sql`CREATE INDEX IF NOT EXISTS ratings_session ON ratings (session_id, round)`;
+    await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS live_results BOOLEAN NOT NULL DEFAULT FALSE`;
     await sql`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,

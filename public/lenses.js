@@ -1,5 +1,5 @@
 /* ============================================================
-   TRILUME: lens definitions, scoring and drawing (SVG).
+   TRILUME: tool (lens) definitions, scoring, 2D maps (SVG) and the 3D map (canvas).
    Ratings are 1–5. x / y are the two scales of each lens.
    ============================================================ */
 (function () {
@@ -40,8 +40,6 @@
   };
   var ORDER = ['maya', 'meta', 'insight'];
   var PRODUCT_TYPES = ['Consumer product', 'Medical device', 'Fashion / lifestyle', 'Consumer electronics', 'Architecture / interior'];
-  var MOVES = ['Lateral jump', 'Vertical refinement', 'Combined two ideas', 'New metaphor', 'AI suggested it'];
-  var SOURCES = ['Myself', 'A classmate', 'The professor', 'AI'];
 
   var REGIONS = {
     insight: { name: 'Insight zone', text: 'Unexpected and well reasoned.' },
@@ -116,61 +114,36 @@
     return { points: pts, ready: true, zone: { cx: cx, cy: cy, rx: Math.max(sx, 0.4), ry: Math.max(sy, 0.4) } };
   }
 
-  // ---------- Turn raw results into one result per idea ----------
+  // ---------- Results per idea (presenter × idea) ----------
   function compute(data) {
     var lenses = data.lenses, cloud = cloudOf(data.refs), out = {}, list = [];
-    var key = function (s, r, k) { return s + '|' + r + '|' + k; };
-    var ideaRows = {};
-    (data.ideas || []).forEach(function (i) { ideaRows[key(i.student_id, i.round, i.slot)] = i; });
-    var groups = {};
+    var key = function (s, k) { return s + '|' + k; };
     (data.ratings || []).forEach(function (r) {
-      var k = key(r.student_id, r.round, r.slot);
-      (groups[k] = groups[k] || []).push(r);
+      if (r.slot > data.ideasPer || lenses.indexOf(r.lens) === -1) return;
+      var k = key(r.student_id, r.slot);
+      (out[k] = out[k] || { studentId: r.student_id, slot: r.slot, all: [] }).all.push(r);
     });
-    Object.keys(ideaRows).forEach(function (k) { groups[k] = groups[k] || []; });
-    Object.keys(groups).forEach(function (k) {
-      var p = k.split('|'), sid = +p[0], round = +p[1], slot = +p[2];
-      if (slot > data.ideasPer) return;
-      var rs = groups[k], row = ideaRows[k] || {}, res = {
-        studentId: sid, round: round, slot: slot, title: row.title || '',
-        moveType: row.move_type || '', source: row.change_source || '', why: row.why || '',
-        pred: row.pred_x != null && row.pred_y != null ? { x: row.pred_x, y: row.pred_y } : null,
-        lens: {}, scores: [], n: rs.length
-      };
+    Object.keys(out).forEach(function (k) {
+      var res = out[k]; res.lens = {}; res.complete = true;
       lenses.forEach(function (l) {
-        var lr = rs.filter(function (r) { return r.lens === l; });
-        var z = data.zones[l];
-        if (!lr.length) { res.lens[l] = { n: 0, ratings: [] }; return; }
-        var x = mean(lr, 'x'), y = mean(lr, 'y'), sc = closeness(z, x, y);
-        res.lens[l] = { n: lr.length, ratings: lr, x: x, y: y, inZone: inZone(z, x, y), score: sc, sug: suggestion(l, z, x, y) };
-        res.scores.push(sc);
+        var lr = res.all.filter(function (r) { return r.lens === l; }), z = data.zones[l];
+        if (!lr.length) { res.lens[l] = { n: 0, ratings: [] }; res.complete = false; return; }
+        var x = mean(lr, 'x'), y = mean(lr, 'y');
+        res.lens[l] = { n: lr.length, ratings: lr, x: x, y: y, inZone: inZone(z, x, y), score: closeness(z, x, y), sug: suggestion(l, z, x, y) };
       });
-      res.overall = res.scores.length ? Math.round(res.scores.reduce(function (a, b) { return a + b; }, 0) / res.scores.length) : null;
       var I = res.lens.insight;
       if (I && I.n) {
         res.region = region(data.zones.insight, I.x, I.y);
-        if (cloud.ready) {
-          var dx = I.x - cloud.zone.cx, dy = I.y - cloud.zone.cy;
-          res.obvious = { inside: inZone(cloud.zone, I.x, I.y), dist: Math.sqrt(dx * dx + dy * dy) };
-        }
-        if (res.pred) { var gx = res.pred.x - I.x, gy = res.pred.y - I.y; res.gap = Math.sqrt(gx * gx + gy * gy); }
+        if (cloud.ready) { var dx = I.x - cloud.zone.cx, dy = I.y - cloud.zone.cy; res.obvious = { inside: inZone(cloud.zone, I.x, I.y), dist: Math.sqrt(dx * dx + dy * dy) }; }
       }
-      out[k] = res; list.push(res);
+      list.push(res);
     });
-    // Paths: link each idea to the same slot in the latest earlier round that has results.
-    list.forEach(function (res) {
-      res.prev = null;
-      for (var r = res.round - 1; r >= 1; r--) {
-        var pr = out[key(res.studentId, r, res.slot)];
-        if (pr && pr.n) { res.prev = pr; break; }
-      }
-    });
-    list.sort(function (a, b) { return a.round - b.round || a.studentId - b.studentId || a.slot - b.slot; });
+    list.sort(function (a, b) { return a.studentId - b.studentId || a.slot - b.slot; });
     return { byKey: out, list: list, cloud: cloud, key: key };
   }
 
-  // ---------- SVG map ----------
-  // opts: lens, zone, cloud (insight only), dots [{x,y}], items [{x,y,color,label,pred,prev}], small, quadrants
+  // ---------- SVG map (one tool) ----------
+  // opts: lens, zone, cloud (Insight only), dots [{x,y,color}], items [{x,y,color,label}], small
   function svgMap(opts) {
     var L = LENSES[opts.lens], W = 340, H = 330, pad = { l: 46, r: 14, t: 14, b: 50 };
     var pw = W - pad.l - pad.r, ph = H - pad.t - pad.b, lo = L.axisMin, span = 5 - lo;
@@ -184,7 +157,7 @@
       s += '<text x="' + X(v) + '" y="' + (pad.t + ph + 13) + '" class="tick" text-anchor="middle">' + v + '</text>';
       s += '<text x="' + (pad.l - 7) + '" y="' + (Y(v) + 3.5) + '" class="tick" text-anchor="end">' + v + '</text>';
     }
-    if (opts.lens === 'insight' && opts.quadrants !== false) {
+    if (opts.lens === 'insight') {
       var mx = X(3), my = Y(3);
       s += '<line x1="' + mx + '" y1="' + pad.t + '" x2="' + mx + '" y2="' + (pad.t + ph) + '" stroke="#e2ddd3" stroke-dasharray="3 3"/>';
       s += '<line x1="' + pad.l + '" y1="' + my + '" x2="' + (pad.l + pw) + '" y2="' + my + '" stroke="#e2ddd3" stroke-dasharray="3 3"/>';
@@ -192,17 +165,14 @@
       s += '<text x="' + (pad.l + 6) + '" y="' + (pad.t + ph - 6) + '" class="quad">AUTOPILOT</text>';
       s += '<text x="' + (pad.l + pw - 6) + '" y="' + (pad.t + ph - 6) + '" class="quad" text-anchor="end">WILD GUESS</text>';
     }
-    // Axis labels
     s += '<text x="' + pad.l + '" y="' + (H - 22) + '" class="end">' + esc(L.x.low) + '</text>';
     s += '<text x="' + (pad.l + pw) + '" y="' + (H - 22) + '" class="end" text-anchor="end">' + esc(L.x.high) + '</text>';
     s += '<text x="' + (pad.l + pw / 2) + '" y="' + (H - 6) + '" class="axis" text-anchor="middle">' + esc(L.x.name) + ' →</text>';
     s += '<text transform="translate(12 ' + (pad.t + ph / 2) + ') rotate(-90)" class="axis" text-anchor="middle">' + esc(L.y.axisName || L.y.name) + ' →</text>';
-    // AI obvious zone
+    // AI obvious zone (Insight Lens only)
     var c = opts.cloud;
     if (opts.lens === 'insight' && c && c.points && c.points.length) {
-      if (c.ready) {
-        s += '<ellipse cx="' + X(c.zone.cx) + '" cy="' + Y(c.zone.cy) + '" rx="' + (c.zone.rx / span) * pw + '" ry="' + (c.zone.ry / span) * ph + '" fill="#8a8578" fill-opacity="0.13" stroke="#8a8578" stroke-opacity="0.5" stroke-dasharray="2 3"/>';
-      }
+      if (c.ready) s += '<ellipse cx="' + X(c.zone.cx) + '" cy="' + Y(c.zone.cy) + '" rx="' + (c.zone.rx / span) * pw + '" ry="' + (c.zone.ry / span) * ph + '" fill="#8a8578" fill-opacity="0.13" stroke="#8a8578" stroke-opacity="0.5" stroke-dasharray="2 3"/>';
       c.points.forEach(function (p) { s += '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="2.6" fill="#8a8578" fill-opacity="0.55"/>'; });
       if (c.ready) s += '<text x="' + X(c.zone.cx) + '" y="' + (Y(c.zone.cy) + (c.zone.ry / span) * ph + 11) + '" class="cloud" text-anchor="middle">AI obvious zone</text>';
     }
@@ -211,125 +181,150 @@
     s += '<ellipse cx="' + zx + '" cy="' + zy + '" rx="' + zrx + '" ry="' + zry + '" fill="' + L.color + '" fill-opacity="0.10" stroke="' + L.color + '" stroke-width="1.6" stroke-dasharray="5 4"/>';
     var zly = zy - zry - 5 < pad.t + 9 ? zy + 3 : zy - zry - 5;
     s += '<text x="' + zx + '" y="' + zly + '" class="zone" fill="' + L.color + '" text-anchor="middle">' + esc(opts.lens === 'insight' ? 'INSIGHT ZONE' : opts.lens === 'maya' ? 'MAYA ZONE' : 'TARGET ZONE') + '</text>';
-    // Individual ratings
+    // Single ratings: one circle per distinct score, bigger when more people gave it
     var counts = {};
-    (opts.dots || []).forEach(function (d) { var k = d.x + ',' + d.y + ',' + (d.color || ''); counts[k] = (counts[k] || 0) + 1; });
+    (opts.dots || []).forEach(function (d) { var k = d.x + ',' + d.y + ',' + (d.color || L.color); counts[k] = (counts[k] || 0) + 1; });
     Object.keys(counts).forEach(function (k) {
-      var p = k.split(','), n = counts[k], col = p[2] || L.color;
-      s += '<circle cx="' + X(+p[0]) + '" cy="' + Y(+p[1]) + '" r="' + (3.5 + Math.sqrt(n) * 2.6) + '" fill="' + col + '" fill-opacity="0.22" stroke="' + col + '" stroke-opacity="0.6"/>';
+      var p = k.split(','), n = counts[k], col = p.slice(2).join(',');
+      s += '<circle cx="' + X(+p[0]) + '" cy="' + Y(+p[1]) + '" r="' + (3.5 + Math.sqrt(n) * 2.6) + '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-opacity="0.55"/>';
       if (n > 1) s += '<text x="' + X(+p[0]) + '" y="' + (Y(+p[1]) + 3) + '" class="n" fill="' + col + '" text-anchor="middle">' + n + '</text>';
     });
-    // Paths, predictions, averages
+    // Averages (diamonds) with labels
     (opts.items || []).forEach(function (it) {
-      var col = it.color || L.color;
-      if (it.prev && Math.abs(it.prev.x - it.x) + Math.abs(it.prev.y - it.y) > 0.05) {
-        var x1 = X(it.prev.x), y1 = Y(it.prev.y), x2 = X(it.x), y2 = Y(it.y), ang = Math.atan2(y2 - y1, x2 - x1);
-        s += '<circle cx="' + x1 + '" cy="' + y1 + '" r="4" fill="#fff" stroke="' + col + '" stroke-width="1.5"/>';
-        s += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + (x2 - 9 * Math.cos(ang)) + '" y2="' + (y2 - 9 * Math.sin(ang)) + '" stroke="' + col + '" stroke-width="2"/>';
-        var bx = x2 - 9 * Math.cos(ang), by = y2 - 9 * Math.sin(ang);
-        s += '<path d="M' + bx + ' ' + by + ' L' + (bx - 7 * Math.cos(ang - 0.45)) + ' ' + (by - 7 * Math.sin(ang - 0.45)) + ' M' + bx + ' ' + by + ' L' + (bx - 7 * Math.cos(ang + 0.45)) + ' ' + (by - 7 * Math.sin(ang + 0.45)) + '" stroke="' + col + '" stroke-width="2" fill="none"/>';
-      }
-      if (it.pred) {
-        var px = X(it.pred.x), py = Y(it.pred.y);
-        s += '<line x1="' + px + '" y1="' + py + '" x2="' + X(it.x) + '" y2="' + Y(it.y) + '" stroke="#555" stroke-dasharray="3 3"/>';
-        s += '<circle cx="' + px + '" cy="' + py + '" r="6.5" fill="#fff" stroke="#333" stroke-width="2"/><circle cx="' + px + '" cy="' + py + '" r="1.8" fill="#333"/>';
-      }
-    });
-    (opts.items || []).forEach(function (it) {
-      var mx = X(it.x), my = Y(it.y), d = opts.small ? 7 : 8, col = it.color || L.color;
-      s += '<path d="M' + mx + ' ' + (my - d) + ' L' + (mx + d) + ' ' + my + ' L' + mx + ' ' + (my + d) + ' L' + (mx - d) + ' ' + my + 'Z" fill="' + col + '" stroke="#fff" stroke-width="2"/>';
+      var ix = X(it.x), iy = Y(it.y), d = opts.small ? 7 : 8, col = it.color || L.color;
+      s += '<path d="M' + ix + ' ' + (iy - d) + ' L' + (ix + d) + ' ' + iy + ' L' + ix + ' ' + (iy + d) + ' L' + (ix - d) + ' ' + iy + 'Z" fill="' + col + '" stroke="#fff" stroke-width="2"/>';
       if (it.label) {
-        var right = mx < pad.l + pw - 70;
-        s += '<text x="' + (right ? mx + d + 4 : mx - d - 4) + '" y="' + (my + 3.5) + '" class="lbl" fill="' + col + '" text-anchor="' + (right ? 'start' : 'end') + '" paint-order="stroke" stroke="#fff" stroke-width="3">' + esc(it.label) + '</text>';
+        var right = ix < pad.l + pw - 70;
+        s += '<text x="' + (right ? ix + d + 4 : ix - d - 4) + '" y="' + (iy + 3.5) + '" class="lbl" fill="' + col + '" text-anchor="' + (right ? 'start' : 'end') + '" paint-order="stroke" stroke="#fff" stroke-width="3">' + esc(it.label) + '</text>';
       }
     });
     return s + '</svg>';
   }
 
-  // ---------- Triangle: one corner per lens, 0–100 ----------
-  function svgTriangle(res, lenses) {
-    var act = ORDER.filter(function (l) { return lenses.indexOf(l) !== -1; });
-    if (act.length < 3) {
-      // Two lenses: two simple bars.
-      return '<div class="bars">' + act.map(function (l) {
-        var sc = res.lens[l] && res.lens[l].n ? res.lens[l].score : null;
-        return '<div class="bar-row"><span class="bar-name" style="color:' + LENSES[l].color + '">' + LENSES[l].short + '</span>' +
-          '<span class="bar"><span style="width:' + (sc || 0) + '%;background:' + LENSES[l].color + '"></span></span><b>' + (sc == null ? '–' : sc) + '</b></div>';
-      }).join('') + '</div>';
+  // ---------- 3D map: one axis per tool (closeness to its zone, 0–100) ----------
+  var views = {};
+  function mount3D(canvas, points, key) {
+    var v = views[key] = views[key] || { yaw: -0.65, pitch: 0.42 };
+    v.points = points; v.canvas = canvas;
+    if (!canvas.dataset.wired) {
+      canvas.dataset.wired = '1';
+      var drag = null;
+      var down = function (x, y) { drag = { x: x, y: y, yaw: v.yaw, pitch: v.pitch }; v.dragging = true; };
+      var move = function (x, y) { if (!drag) return; v.yaw = drag.yaw + (x - drag.x) * 0.01; v.pitch = Math.max(-0.2, Math.min(1.35, drag.pitch + (y - drag.y) * 0.01)); draw3D(v); };
+      var up = function () { drag = null; v.dragging = false; };
+      canvas.addEventListener('mousedown', function (e) { down(e.clientX, e.clientY); });
+      window.addEventListener('mousemove', function (e) { move(e.clientX, e.clientY); });
+      window.addEventListener('mouseup', up);
+      canvas.addEventListener('touchstart', function (e) { var t = e.touches[0]; down(t.clientX, t.clientY); }, { passive: true });
+      canvas.addEventListener('touchmove', function (e) { var t = e.touches[0]; move(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+      canvas.addEventListener('touchend', up);
+      canvas.addEventListener('dblclick', function () { v.yaw = -0.65; v.pitch = 0.42; draw3D(v); });
     }
-    var W = 230, H = 206, cx = 115, cy = 122, R = 78;
-    // Insight on top (Aya's lens), MAYA bottom-left, Metaphor bottom-right
-    var pos = { insight: -90, maya: 150, meta: 30 };
-    var pt = function (l, f) { var a = pos[l] * Math.PI / 180; return [cx + Math.cos(a) * R * f, cy + Math.sin(a) * R * f]; };
-    var poly = function (f) { return ['insight', 'meta', 'maya'].map(function (l) { var p = pt(l, f); return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' '); };
-    var s = '<svg class="tri" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three-lens triangle">';
-    s += '<polygon points="' + poly(1) + '" fill="#faf8f4" stroke="#d9d6cf"/>';
-    s += '<polygon points="' + poly(0.5) + '" fill="none" stroke="#e8e4dc" stroke-dasharray="3 3"/>';
-    ['insight', 'meta', 'maya'].forEach(function (l) { var p = pt(l, 1); s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p[0] + '" y2="' + p[1] + '" stroke="#ece8e0"/>'; });
-    var vals = {}, have = 0;
-    ['insight', 'meta', 'maya'].forEach(function (l) { var r = res.lens[l]; vals[l] = r && r.n ? r.score : null; if (vals[l] != null) have++; });
-    if (have) {
-      var dp = ['insight', 'meta', 'maya'].map(function (l) { var p = pt(l, Math.max((vals[l] || 0) / 100, 0.04)); return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
-      s += '<polygon points="' + dp + '" fill="#1f2a44" fill-opacity="0.16" stroke="#1f2a44" stroke-width="2" stroke-linejoin="round"/>';
-      ['insight', 'meta', 'maya'].forEach(function (l) { if (vals[l] == null) return; var p = pt(l, Math.max(vals[l] / 100, 0.04)); s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="' + LENSES[l].color + '" stroke="#fff" stroke-width="1.5"/>'; });
+    draw3D(v);
+  }
+  function draw3D(v) {
+    var canvas = v.canvas, wrap = canvas.parentElement;
+    var w = wrap.clientWidth; if (w < 120) return;
+    var h = Math.round(Math.min(w * 0.85, 640)), dpr = window.devicePixelRatio || 1;
+    canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+    var S = Math.min(w, h) * 0.26, cx = w / 2, cy = h * 0.5;
+    var cyw = Math.cos(v.yaw), syw = Math.sin(v.yaw), cp = Math.cos(v.pitch), sp = Math.sin(v.pitch);
+    // World: x = MAYA, y (up) = Insight, z = Metaphor; each 0–100 mapped to -1..1
+    function P(a, b, c) {
+      var x = a / 50 - 1, y = c / 50 - 1, z = b / 50 - 1;
+      var x1 = x * cyw - z * syw, z1 = x * syw + z * cyw;
+      var y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+      return { x: cx + x1 * S, y: cy - y2 * S, d: z2 };
     }
-    var lab = function (l, x, y, anchor) {
-      return '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" class="tri-l" fill="' + LENSES[l].color + '">' + LENSES[l].short +
-        ' <tspan class="tri-v">' + (vals[l] == null ? '–' : vals[l]) + '</tspan></text>';
-    };
-    s += lab('insight', cx, 26, 'middle');
-    var pm = pt('maya', 1), pe = pt('meta', 1);
-    s += lab('maya', pm[0] - 2, pm[1] + 22, 'start');
-    s += lab('meta', pe[0] + 2, pe[1] + 22, 'end');
-    return s + '</svg>';
+    function line(p, q, col, wdt, dash) { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.strokeStyle = col; ctx.lineWidth = wdt || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); }
+    // Floor grid (Insight = 0)
+    for (var g = 0; g <= 100; g += 25) {
+      line(P(g, 0, 0), P(g, 100, 0), '#efece6'); line(P(0, g, 0), P(100, g, 0), '#efece6');
+    }
+    // Cube edges
+    var E = [[0, 0, 0, 100, 0, 0], [0, 0, 0, 0, 100, 0], [0, 0, 0, 0, 0, 100], [100, 0, 0, 100, 100, 0], [100, 0, 0, 100, 0, 100], [0, 100, 0, 100, 100, 0], [0, 100, 0, 0, 100, 100], [0, 0, 100, 100, 0, 100], [0, 0, 100, 0, 100, 100], [100, 100, 0, 100, 100, 100], [100, 0, 100, 100, 100, 100], [0, 100, 100, 100, 100, 100]];
+    E.forEach(function (e) { line(P(e[0], e[1], e[2]), P(e[3], e[4], e[5]), '#d9d6cf'); });
+    // Axes in tool colours
+    line(P(0, 0, 0), P(100, 0, 0), LENSES.maya.color, 2.5);
+    line(P(0, 0, 0), P(0, 100, 0), LENSES.meta.color, 2.5);
+    line(P(0, 0, 0), P(0, 0, 100), LENSES.insight.color, 2.5);
+    ctx.font = '700 13px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.textAlign = 'center';
+    function label(p, txt, col) { ctx.fillStyle = col; ctx.fillText(txt, p.x, p.y); }
+    label(P(114, 0, -6), 'MAYA →', LENSES.maya.color);
+    label(P(0, 112, -6), 'Metaphor →', LENSES.meta.color);
+    label(P(0, 0, 112), 'Insight ↑', LENSES.insight.color);
+    ctx.font = '11px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.fillStyle = '#9a968c';
+    [50, 100].forEach(function (t) { var a = P(t, -8, 0), b = P(-8, t, 0), c = P(-6, -6, t); ctx.fillText(t, a.x, a.y + 4); ctx.fillText(t, b.x, b.y + 4); ctx.fillText(t, c.x - 8, c.y + 4); }); var o = P(-7, -7, 0); ctx.fillText('0', o.x, o.y + 4);
+    // The corner where an idea is in all three zones
+    var T = P(100, 100, 100);
+    var grd = ctx.createRadialGradient(T.x, T.y, 2, T.x, T.y, 34); grd.addColorStop(0, 'rgba(227,160,8,0.55)'); grd.addColorStop(1, 'rgba(227,160,8,0)');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(T.x, T.y, 34, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#8a5a00'; ctx.font = '700 11px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.fillText('All three zones', T.x, T.y - 22);
+    // Ideas, far ones first
+    var pts = (v.points || []).map(function (p) { var q = P(p.a, p.b, p.c); q.p = p; q.f = P(p.a, p.b, 0); return q; }).sort(function (a, b) { return b.d - a.d; });
+    pts.forEach(function (q) {
+      line(q.f, q, q.p.color, 1, [3, 3]);
+      ctx.beginPath(); ctx.arc(q.f.x, q.f.y, 2.2, 0, Math.PI * 2); ctx.fillStyle = q.p.color; ctx.globalAlpha = 0.5; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(q.x, q.y, 7.5, 0, Math.PI * 2); ctx.fillStyle = q.p.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      if (q.p.label) {
+        ctx.font = '700 11.5px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.textAlign = 'left';
+        ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.strokeText(q.p.label, q.x + 10, q.y + 4);
+        ctx.fillStyle = q.p.color; ctx.fillText(q.p.label, q.x + 10, q.y + 4); ctx.textAlign = 'center';
+      }
+    });
+    if (!pts.length) { ctx.fillStyle = '#9a968c'; ctx.font = '14px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.fillText('Ideas appear here once they have ratings with all three tools.', w / 2, h - 16); }
+  }
+  window.addEventListener('resize', function () { Object.keys(views).forEach(function (k) { if (views[k].canvas && document.body.contains(views[k].canvas)) draw3D(views[k]); }); });
+
+  // Points for the 3D map from computed results (only ideas rated with all three tools).
+  function points3D(comp, colorOf, labelOf) {
+    return comp.list.filter(function (r) { return r.complete && r.lens.maya && r.lens.meta && r.lens.insight; }).map(function (r) {
+      return { a: r.lens.maya.score, b: r.lens.meta.score, c: r.lens.insight.score, color: colorOf(r), label: labelOf ? labelOf(r) : '' };
+    });
   }
 
-  // ---------- One idea card (projector, presenter's phone) ----------
-  function ideaCard(res, data, comp, opts) {
+  // ---------- One presenter's results (like v3: one map per tool, every idea on it) ----------
+  var IDEA_COLORS = ['#c1433c', '#2f6f9f', '#2d7a4d'];
+  function presenterHtml(data, comp, studentId, opts) {
     opts = opts || {};
-    var lenses = data.lenses, html = '<div class="idea-card">';
-    html += '<div class="idea-head"><span class="idea-num">Idea ' + res.slot + '</span><span class="idea-title">' + esc(res.title || (opts.noTitle || '')) + '</span>' +
-      (res.overall != null ? '<span class="overall" title="Average closeness to the target zones (100 = inside)">Overall ' + res.overall + '</span>' : '') + '</div>';
-    if (!res.n) {
-      html += '<p class="muted small">No ratings yet.</p></div>';
-      return html;
-    }
-    html += '<div class="idea-top">' + svgTriangle(res, lenses) + '<div class="lens-notes">';
-    ORDER.forEach(function (l) {
-      if (lenses.indexOf(l) === -1) return;
-      var r = res.lens[l];
-      html += '<div class="lens-note" style="border-color:' + LENSES[l].color + '"><div class="ln-head" style="color:' + LENSES[l].color + '">' + LENSES[l].name +
-        ' <span class="ln-n">' + (r.n ? r.n + ' rating' + (r.n === 1 ? '' : 's') : 'no ratings yet') + '</span></div>' +
-        (r.n ? '<div class="ln-text">' + esc(r.sug) + '</div>' : '') + '</div>';
-    });
-    if (res.obvious && res.obvious.inside) html += '<div class="flag">Close to the ideas an AI gives for this brief.</div>';
-    if (res.gap != null) {
-      html += '<div class="pred-note"><b>Predicted:</b> ' + esc(describe('insight', res.pred.x, res.pred.y)) +
-        ' · <b>Class:</b> ' + esc(describe('insight', res.lens.insight.x, res.lens.insight.y)) + ' · <b>' + res.gap.toFixed(1) + '</b> apart' +
-        (res.gap <= 0.75 ? ' (well judged)' : '') + '.</div>';
-    }
-    if (res.prev && (res.moveType || res.source)) {
-      html += '<div class="pred-note"><b>Change:</b> ' + esc(res.moveType || '–') + (res.source ? ' · from ' + esc(res.source.toLowerCase()) : '') + (res.why ? ' · “' + esc(res.why) + '”' : '') + '</div>';
-    }
-    html += '</div></div>' + (opts.foldMaps ? '<details class="maps-toggle"><summary>Show the three maps</summary>' : '') + '<div class="mini-maps">';
-    ORDER.forEach(function (l) {
-      if (lenses.indexOf(l) === -1) return;
-      var r = res.lens[l], items = [];
-      if (r.n) {
-        var it = { x: r.x, y: r.y };
-        if (l === 'insight' && res.pred) it.pred = res.pred;
-        if (res.prev && res.prev.lens[l] && res.prev.lens[l].n) it.prev = { x: res.prev.lens[l].x, y: res.prev.lens[l].y };
-        items.push(it);
+    var html = '<div class="tool-grid tools-' + data.lenses.length + '">';
+    data.lenses.forEach(function (l) {
+      var L = LENSES[l], dots = [], items = [], rows = '', n = 0;
+      for (var i = 1; i <= data.ideasPer; i++) {
+        var r = comp.byKey[comp.key(studentId, i)], lr = r && r.lens[l];
+        if (!lr || !lr.n) continue;
+        n = Math.max(n, lr.n);
+        lr.ratings.forEach(function (x) { dots.push({ x: x.x, y: x.y, color: IDEA_COLORS[i - 1] }); });
+        items.push({ x: lr.x, y: lr.y, color: IDEA_COLORS[i - 1], label: data.ideasPer > 1 ? String(i) : '' });
+        rows += '<div class="idea-row"><span class="idea-sw" style="background:' + IDEA_COLORS[i - 1] + '"></span><div><b>' + (data.ideasPer > 1 ? 'Idea ' + i : 'The idea') + '</b> · ' +
+          esc(L.x.name.split(' (')[0]) + ' ' + lr.x.toFixed(1) + ' · ' + esc((L.y.axisName || L.y.name)) + ' ' + lr.y.toFixed(1) +
+          '<div class="idea-sug">' + (lr.inZone ? '✔ ' : '↗ ') + esc(lr.sug) + (l === 'insight' && r.obvious && r.obvious.inside ? ' <span class="flag-inline">Close to the AI ideas for this brief.</span>' : '') + '</div></div></div>';
       }
-      html += '<div class="mini"><div class="mini-name" style="color:' + LENSES[l].color + '">' + LENSES[l].name + '</div>' +
-        svgMap({ lens: l, zone: data.zones[l], cloud: l === 'insight' ? comp.cloud : null, dots: r.ratings, items: items, small: true }) + '</div>';
+      html += '<div class="tool-card" style="border-top-color:' + L.color + '"><div class="tool-head"><span class="tool-name" style="color:' + L.color + '">' + L.name + '</span><span class="muted small">' +
+        (n ? n + ' rating' + (n === 1 ? '' : 's') : 'no ratings yet') + '</span></div><div class="tool-q">' + L.question + '</div>' +
+        svgMap({ lens: l, zone: data.zones[l], cloud: l === 'insight' ? comp.cloud : null, dots: dots, items: items, small: true }) +
+        (rows || '<p class="muted small" style="padding:8px 0">Ratings appear here as classmates press Submit.</p>') + '</div>';
     });
-    return html + '</div>' + (opts.foldMaps ? '</details>' : '') + '</div>';
+    html += '</div>';
+    if (data.lenses.length === 3) {
+      html += '<div class="cube-card"><div class="tool-head"><span class="tool-name">3D map: all three tools</span><span class="muted small">Drag to turn it · double-click to reset</span></div>' +
+        '<p class="tool-q">Each axis shows how close the idea is to that tool’s target zone (100 = inside the zone). The glowing corner is where an idea is in all three zones.</p>' +
+        '<div class="cube-wrap"><canvas class="cube" data-cube="' + esc(opts.cubeKey || 'p') + '"></canvas></div></div>';
+    }
+    return html;
+  }
+  function mountPresenterCube(root, data, comp, studentId, key) {
+    var cv = root.querySelector('canvas.cube'); if (!cv) return;
+    var mine = { list: comp.list.filter(function (r) { return r.studentId === studentId; }) };
+    mount3D(cv, points3D(mine, function (r) { return IDEA_COLORS[r.slot - 1]; }, function (r) { return data.ideasPer > 1 ? 'Idea ' + r.slot : ''; }), key);
   }
 
   window.TL = {
-    LENSES: LENSES, ORDER: ORDER, PRODUCT_TYPES: PRODUCT_TYPES, MOVES: MOVES, SOURCES: SOURCES, REGIONS: REGIONS,
+    LENSES: LENSES, ORDER: ORDER, PRODUCT_TYPES: PRODUCT_TYPES, REGIONS: REGIONS, IDEA_COLORS: IDEA_COLORS,
     esc: esc, mean: mean, inZone: inZone, closeness: closeness, region: region, suggestion: suggestion, describe: describe,
-    colorFor: colorFor, cloudOf: cloudOf, compute: compute, svgMap: svgMap, svgTriangle: svgTriangle, ideaCard: ideaCard
+    colorFor: colorFor, cloudOf: cloudOf, compute: compute, svgMap: svgMap, mount3D: mount3D, points3D: points3D,
+    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views
   };
 })();

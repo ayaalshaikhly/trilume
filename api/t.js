@@ -2,8 +2,10 @@ const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
 
 // TRILUME API: one endpoint, ?action=...
-// Public actions are used by students' phones; instructor actions need the passcode
-// (Vercel environment variable INSTRUCTOR_PASSCODE, never written in the code).
+// Public actions are used by students' phones; instructor actions need the passcode.
+//
+// A session uses ONE tool (maya, meta or insight) or ALL THREE.
+// Students rate every idea of a presenter with every tool of the session.
 
 // The passcode can be changed in the app; the new one is stored as a salted hash in the settings table.
 // Until it is changed, the INSTRUCTOR_PASSCODE environment variable is used.
@@ -20,8 +22,8 @@ async function passOk(sql, pass) {
   }
   return !!ENV_PASSCODE && pass === ENV_PASSCODE;
 }
-const ALL_LENSES = ['maya', 'meta', 'insight'];
 
+const ALL_LENSES = ['maya', 'meta', 'insight'];
 const MAYA_PRESETS = {
   'Consumer product': { cx: 3.6, cy: 3.6, rx: 0.8, ry: 0.7 },
   'Medical device': { cx: 4.0, cy: 2.8, rx: 0.7, ry: 0.6 },
@@ -34,11 +36,14 @@ const DEFAULT_ZONES = {
   insight: { cx: 4.0, cy: 4.0, rx: 0.7, ry: 0.7 }
 };
 
-const N_REFS = 24;
-const PROMPT = 'You are helping a design instructor. For the design brief below, list ' + N_REFS + ' different ' +
+// AI reference ideas: only for the Insight Lens.
+// How many reference ideas the AI writes (instructor can choose 10–30; default 24, about one class).
+function promptFor(n) {
+  return 'You are helping a design instructor. For the design brief below, list ' + n + ' different ' +
   'design ideas that a typical design student or an AI assistant would be likely to propose. For each idea give: ' +
   'a short title (max 8 words) and one sentence explaining the reasoning behind it (max 25 words). Return JSON only: ' +
-  '[{"title": "...", "reasoning": "..."}].\nDesign brief: ';
+    '[{"title": "...", "reasoning": "..."}].\nDesign brief: ';
+}
 const MODELS = (process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : []).concat(['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-flash-lite-latest']);
 
 function num(v, lo, hi, d) {
@@ -60,10 +65,11 @@ function cleanNames(names) {
   }
   return out.slice(0, 200);
 }
+// One tool, or all three. Never two.
 function cleanLenses(list) {
-  const set = new Set((Array.isArray(list) ? list : []).filter(l => ALL_LENSES.includes(l)));
-  set.add('insight'); // the Insight Lens is always on
-  return ALL_LENSES.filter(l => set.has(l));
+  const l = (Array.isArray(list) ? list : [list]).filter(x => ALL_LENSES.includes(x));
+  if (l.length === 1) return l;
+  return ALL_LENSES.slice();
 }
 function cleanRefs(list) {
   if (!Array.isArray(list)) return [];
@@ -75,7 +81,7 @@ function sessionOut(s) {
   return {
     id: s.id, title: s.title, brief: s.brief, productType: s.product_type,
     lenses: s.lenses.split(',').filter(Boolean), zones: s.zones, ideasPer: s.ideas_per,
-    round: s.round, hideNames: !!s.hide_names, warmup: !!s.warmup,
+    hideNames: !!s.hide_names, warmup: !!s.warmup, liveResults: !!s.live_results,
     aiModel: s.ai_model, aiPrompt: s.ai_prompt, aiDate: s.ai_date, createdAt: s.created_at
   };
 }
@@ -93,7 +99,8 @@ async function saveRefs(sql, id, refs) {
   }
 }
 
-async function generateRefs(brief) {
+async function generateRefs(brief, n) {
+  const PROMPT = promptFor(n);
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('The AI key is not set up yet. You can paste ideas instead.');
   let lastErr = 'The AI did not answer.';
@@ -113,7 +120,7 @@ async function generateRefs(brief) {
       const m = text.match(/\[[\s\S]*\]/);
       const list = cleanRefs(JSON.parse(m ? m[0] : text));
       if (list.length < 5) { lastErr = 'The AI returned too few ideas.'; continue; }
-      return { model, prompt: PROMPT + brief, ideas: list.slice(0, N_REFS) };
+      return { model, prompt: PROMPT + brief, ideas: list.slice(0, n) };
     } catch (e) { lastErr = e.message; }
   }
   throw new Error(lastErr);
@@ -135,54 +142,36 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ...sessionOut(s), students, refCount: rc[0].n });
     }
 
-    // Which lens this phone uses for this presenter: the lens with the fewest raters so far (balanced).
-    if (action === 'assign' && req.method === 'GET') {
-      const s = await loadSession(sql, q.id);
-      if (!s) return res.status(404).json({ error: 'Session not found' });
-      const student = parseInt(q.student), token = cleanText(q.token, 64);
-      const lenses = s.lenses.split(',');
-      const mine = await sql`SELECT lens FROM ratings WHERE session_id = ${s.id} AND student_id = ${student} AND round = ${s.round} AND token = ${token} LIMIT 1`;
-      if (mine.length && lenses.includes(mine[0].lens)) return res.status(200).json({ lens: mine[0].lens, again: true });
-      const counts = await sql`
-        SELECT lens, COUNT(DISTINCT token)::int AS n FROM ratings
-        WHERE session_id = ${s.id} AND student_id = ${student} AND round = ${s.round} GROUP BY lens`;
-      const c = {}; lenses.forEach(l => { c[l] = 0; }); counts.forEach(r => { if (r.lens in c) c[r.lens] = r.n; });
-      const min = Math.min(...lenses.map(l => c[l]));
-      const pool = lenses.filter(l => c[l] === min);
-      return res.status(200).json({ lens: pool[Math.floor(Math.random() * pool.length)], again: false });
-    }
-
+    // One Submit per presenter: every idea, every tool of the session. Rating again replaces the earlier answer.
     if (action === 'rate' && req.method === 'POST') {
       const s = await loadSession(sql, body.id);
       if (!s) return res.status(404).json({ error: 'Session not found' });
-      const lens = body.lens, token = cleanText(body.token, 64), student = parseInt(body.student);
-      if (!s.lenses.split(',').includes(lens) || !token || !Array.isArray(body.ratings) || !body.ratings.length) {
-        return res.status(400).json({ error: 'Missing rating details' });
-      }
+      const token = cleanText(body.token, 64), student = parseInt(body.student);
+      const lenses = s.lenses.split(',');
+      if (!token || !Array.isArray(body.ratings) || !body.ratings.length) return res.status(400).json({ error: 'Missing rating details' });
       const st = await sql`SELECT id FROM students WHERE id = ${student} AND session_id = ${s.id} AND active = TRUE`;
       if (!st.length) return res.status(404).json({ error: 'Presenter not found' });
       for (const r of body.ratings) {
         const slot = parseInt(r.slot), x = parseInt(r.x), y = parseInt(r.y);
-        if (!(slot >= 1 && slot <= s.ideas_per) || !(x >= 1 && x <= 5) || !(y >= 1 && y <= 5)) {
-          return res.status(400).json({ error: 'Each idea needs two scores from 1 to 5' });
+        if (!lenses.includes(r.lens) || !(slot >= 1 && slot <= s.ideas_per) || !(x >= 1 && x <= 5) || !(y >= 1 && y <= 5)) {
+          return res.status(400).json({ error: 'Each idea needs two scores from 1 to 5 for each tool' });
         }
       }
-      // A phone keeps one lens per presenter per round; rating again replaces the earlier answer.
-      await sql`DELETE FROM ratings WHERE session_id = ${s.id} AND student_id = ${student} AND round = ${s.round} AND token = ${token} AND lens <> ${lens}`;
       for (const r of body.ratings) {
         await sql`
           INSERT INTO ratings (session_id, student_id, round, slot, lens, token, x, y)
-          VALUES (${s.id}, ${student}, ${s.round}, ${parseInt(r.slot)}, ${lens}, ${token}, ${parseInt(r.x)}, ${parseInt(r.y)})
+          VALUES (${s.id}, ${student}, 1, ${parseInt(r.slot)}, ${r.lens}, ${token}, ${parseInt(r.x)}, ${parseInt(r.y)})
           ON CONFLICT (session_id, student_id, round, slot, lens, token)
           DO UPDATE SET x = EXCLUDED.x, y = EXCLUDED.y, created_at = NOW()`;
       }
-      return res.status(200).json({ ok: true, round: s.round });
+      return res.status(200).json({ ok: true });
     }
 
-    // Warm-up: up to 3 reference ideas this phone has not rated, the least-rated first.
+    // Warm-up (Insight Lens only): up to 3 reference ideas this phone has not rated, the least-rated first.
     if (action === 'warmup' && req.method === 'GET') {
       const s = await loadSession(sql, q.id);
       if (!s) return res.status(404).json({ error: 'Session not found' });
+      if (!s.lenses.split(',').includes('insight')) return res.status(200).json({ refs: [] });
       const token = cleanText(q.token, 64);
       const rows = await sql`
         SELECT r.id, r.title, r.reasoning, COUNT(rr.id)::int AS n FROM refs r
@@ -210,41 +199,17 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // Presenter: idea titles, predictions and (from round 2) what changed.
-    if (action === 'present' && req.method === 'POST') {
-      const s = await loadSession(sql, body.id);
-      if (!s) return res.status(404).json({ error: 'Session not found' });
-      const student = parseInt(body.student);
-      const st = await sql`SELECT id FROM students WHERE id = ${student} AND session_id = ${s.id} AND active = TRUE`;
-      if (!st.length) return res.status(404).json({ error: 'Name not found' });
-      for (const it of (Array.isArray(body.ideas) ? body.ideas : [])) {
-        const slot = parseInt(it.slot);
-        if (!(slot >= 1 && slot <= s.ideas_per)) continue;
-        const px = it.predX == null || it.predX === '' ? null : num(it.predX, 1, 5, null);
-        const py = it.predY == null || it.predY === '' ? null : num(it.predY, 1, 5, null);
-        await sql`
-          INSERT INTO ideas (session_id, student_id, round, slot, title, pred_x, pred_y, move_type, change_source, why)
-          VALUES (${s.id}, ${student}, ${s.round}, ${slot}, ${cleanText(it.title, 120)}, ${px}, ${py},
-                  ${cleanText(it.moveType, 40)}, ${cleanText(it.source, 40)}, ${cleanText(it.why, 400)})
-          ON CONFLICT (session_id, student_id, round, slot) DO UPDATE SET
-            title = EXCLUDED.title, pred_x = EXCLUDED.pred_x, pred_y = EXCLUDED.pred_y,
-            move_type = EXCLUDED.move_type, change_source = EXCLUDED.change_source, why = EXCLUDED.why, updated_at = NOW()`;
-      }
-      return res.status(200).json({ ok: true, round: s.round });
-    }
-
     // Everything needed to draw results. Ratings are anonymous (no tokens returned).
     if (action === 'results' && req.method === 'GET') {
       const s = await loadSession(sql, q.id);
       if (!s) return res.status(404).json({ error: 'Session not found' });
-      const [students, ideas, ratings, refs] = await Promise.all([
+      const [students, ratings, refs] = await Promise.all([
         loadStudents(sql, s.id),
-        sql`SELECT student_id, round, slot, title, pred_x, pred_y, move_type, change_source, why FROM ideas WHERE session_id = ${s.id}`,
-        sql`SELECT student_id, round, slot, lens, x, y FROM ratings WHERE session_id = ${s.id} ORDER BY created_at`,
+        sql`SELECT student_id, slot, lens, x, y FROM ratings WHERE session_id = ${s.id} ORDER BY created_at`,
         sql`SELECT r.id, r.n, r.title, AVG(rr.x)::float AS x, AVG(rr.y)::float AS y, COUNT(rr.id)::int AS count
             FROM refs r LEFT JOIN ref_ratings rr ON rr.ref_id = r.id WHERE r.session_id = ${s.id} GROUP BY r.id ORDER BY r.n`
       ]);
-      return res.status(200).json({ ...sessionOut(s), students, ideas, ratings, refs });
+      return res.status(200).json({ ...sessionOut(s), students, ratings, refs });
     }
 
     // ================= Instructor only =================
@@ -266,7 +231,7 @@ module.exports = async function handler(req, res) {
       const brief = cleanText(body.brief, 600);
       if (!brief) return res.status(400).json({ error: 'Write the design brief first.' });
       try {
-        return res.status(200).json(await generateRefs(brief));
+        return res.status(200).json(await generateRefs(brief, Math.min(Math.max(parseInt(body.count) || 24, 10), 30)));
       } catch (e) {
         return res.status(502).json({ error: 'The AI could not make ideas right now (' + e.message + '). You can paste your own list instead.' });
       }
@@ -279,14 +244,14 @@ module.exports = async function handler(req, res) {
       if (!names.length) return res.status(400).json({ error: 'Add the class list.' });
       const product = MAYA_PRESETS[body.productType] ? body.productType : 'Consumer product';
       const zones = { maya: MAYA_PRESETS[product], meta: DEFAULT_ZONES.meta, insight: DEFAULT_ZONES.insight };
-      const lenses = cleanLenses(body.lenses).join(',');
+      const lenses = cleanLenses(body.lenses);
       const ideasPer = Math.min(Math.max(parseInt(body.ideasPer) || 3, 1), 3);
       const id = crypto.randomBytes(4).toString('hex');
-      const refs = cleanRefs(body.refs);
+      const refs = lenses.includes('insight') ? cleanRefs(body.refs) : [];
       const ai = body.ai || {};
       await sql`
         INSERT INTO sessions (id, title, brief, product_type, lenses, zones, ideas_per, ai_model, ai_prompt, ai_date)
-        VALUES (${id}, ${title}, ${cleanText(body.brief, 600)}, ${product}, ${lenses}, ${JSON.stringify(zones)}::jsonb, ${ideasPer},
+        VALUES (${id}, ${title}, ${cleanText(body.brief, 600)}, ${product}, ${lenses.join(',')}, ${JSON.stringify(zones)}::jsonb, ${ideasPer},
                 ${cleanText(ai.model, 80) || (refs.length ? 'typed by instructor' : '')}, ${String(ai.prompt || '').slice(0, 2000)},
                 ${refs.length ? new Date().toISOString() : null})`;
       for (let i = 0; i < names.length; i++) {
@@ -305,6 +270,7 @@ module.exports = async function handler(req, res) {
       if (body.ideasPer) await sql`UPDATE sessions SET ideas_per = ${Math.min(Math.max(parseInt(body.ideasPer) || 3, 1), 3)} WHERE id = ${s.id}`;
       if (typeof body.hideNames === 'boolean') await sql`UPDATE sessions SET hide_names = ${body.hideNames} WHERE id = ${s.id}`;
       if (typeof body.warmup === 'boolean') await sql`UPDATE sessions SET warmup = ${body.warmup} WHERE id = ${s.id}`;
+      if (typeof body.liveResults === 'boolean') await sql`UPDATE sessions SET live_results = ${body.liveResults} WHERE id = ${s.id}`;
       if (body.productType && MAYA_PRESETS[body.productType]) {
         const z = { ...s.zones, maya: MAYA_PRESETS[body.productType] };
         await sql`UPDATE sessions SET product_type = ${body.productType}, zones = ${JSON.stringify(z)}::jsonb WHERE id = ${s.id}`;
@@ -330,14 +296,9 @@ module.exports = async function handler(req, res) {
         const ai = body.ai || {};
         await sql`UPDATE sessions SET ai_model = ${cleanText(ai.model, 80) || 'typed by instructor'}, ai_prompt = ${String(ai.prompt || '').slice(0, 2000)}, ai_date = NOW() WHERE id = ${s.id}`;
       }
-      if (body.round) {
-        const r = Math.min(Math.max(parseInt(body.round) || 1, 1), 20);
-        await sql`UPDATE sessions SET round = ${r} WHERE id = ${s.id}`;
-      }
       const fresh = await loadSession(sql, s.id);
       const students = await loadStudents(sql, s.id);
-      const refs = await sql`SELECT id, n, title, reasoning FROM refs WHERE session_id = ${s.id} ORDER BY n`;
-      return res.status(200).json({ ...sessionOut(fresh), students, refs });
+      return res.status(200).json({ ...sessionOut(fresh), students });
     }
 
     if (action === 'refs') {
