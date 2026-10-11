@@ -21,7 +21,9 @@ Aya's own contributions are the **Insight Lens**, the **AI obvious zone** (AI-wr
 - All three: students rate each presenter with MAYA, then Metaphor, then Insight (three steps, one Submit). Results show one map per tool plus a **3D map** (axes MAYA, Metaphor, Insight).
 - The AI reference ideas, warm-up and AI obvious zone exist **only with the Insight Lens**.
 
-**Design rule: simple first.** Every scale point shows its meaning. The wording is always developmental ("which way to develop it"), never "good" or "bad".
+Students rate with **sliders** (1.0–5.0, steps of 0.1; each starts empty) and may add one **comment per idea** on the last step (anonymous, instructor only).
+
+**Design rule: simple first.** Every slider shows the value and the meaning of the closest level. The wording is always developmental ("which way to develop it"), never "good" or "bad".
 
 ---
 
@@ -71,19 +73,21 @@ Pages load their CSS/JS through a `document.write('<base href=...>')` line at th
 | Public (phones) | Instructor (passcode) |
 |---|---|
 | `get` session + class list | `check` passcode |
-| `rate` all ideas × all tools of one presenter (one Submit) | `changePass` new passcode |
+| `rate` all ideas × all tools of one presenter, plus optional comments (one Submit) | `changePass` new passcode |
 | `warmup` 3 reference ideas to rate (Insight only) | `generate` AI reference ideas from the brief (`count` 10–30) |
 | `rateRefs` submit warm-up ratings | `create`, `update`, `delete`, `eraseAll`, `list` |
-| `results` everything needed to draw results (no rater tokens) | `refs` list reference ideas |
+| `results` everything needed to draw results (no rater tokens, no comments) | `refs` list reference ideas |
+| | `comments` the written comments (instructor only) |
 
 ### Database (`api/setup-db.js`)
 | Table | One row per |
 |---|---|
-| `sessions` | class activity: title, brief, product type, lenses (`maya`, `meta`, `insight`, or all three), zones (JSON), ideas per presenter, hide names, warm-up on/off, results on phones (`live_results`), AI model/prompt/date |
+| `sessions` | class activity: title, brief, product type, lenses (`maya`, `meta`, `insight`, or all three), zones (JSON), ideas per presenter, hide names, warm-up on/off, results on phones (`live_results`, on by default), AI model/prompt/date |
 | `students` | name in the class list (`active = false` when removed; ratings are kept) |
 | `refs` | AI reference idea (title, reasoning) |
-| `ref_ratings` | warm-up rating of one reference idea by one phone (Insight Lens) |
-| `ratings` | rater phone × presenter × idea (slot 1–3) × tool: x, y (1–5). The `round` column is always 1 (rounds were removed in v2) |
+| `ref_ratings` | warm-up rating of one reference idea by one phone (Insight Lens, decimals) |
+| `ratings` | rater phone × presenter × idea (slot 1–3) × tool: x, y (decimals 1.0–5.0). The `round` column is always 1 (rounds were removed in v2) |
+| `comments` | rater phone × presenter × idea: one written comment (up to 300 characters) |
 | `ideas` | not used since v2 (kept so old data is not lost) |
 | `settings` | `passcode` = salt:sha256 hash |
 
@@ -110,7 +114,11 @@ Ratings are anonymous: the `token` is a random code stored on the phone, used on
 | Change the default target zones | `MAYA_PRESETS` and `DEFAULT_ZONES` in `api/t.js` (new sessions only; existing sessions are changed in Settings → Target zones) |
 | Change the AI prompt | `promptFor()` in `api/t.js` |
 | Change the choices for the number of reference ideas | `fillCounts()` in `public/index.html` (the server allows 10–30) |
-| Change the idea colours (red, blue, green) | `IDEA_COLORS` in `public/lenses.js` |
+| Change the idea colours (red, blue, gold) | `IDEA_COLORS` (and `outlineFor`, the dark outline for gold) in `public/lenses.js` |
+| Change the slider (range, step, text) | `scaleHtml()` and `descText()` in `public/go.html`; the server accepts 1.0–5.0 (`score()` in `api/t.js`) |
+| Change the comment box | `renderStep()` in `public/go.html` (max 300 characters, also limited in `api/t.js`) |
+| Change the Excel download | the `dlExcel` click handler in `public/index.html` |
+| Change the saved picture | `saveMap()` in `public/lenses.js` |
 | Change the 3D map | `draw3D()` in `public/lenses.js` |
 | Change the AI model | Vercel variable `GEMINI_MODEL`, or the `MODELS` list in `api/t.js` |
 | Change how many warm-up ideas each student rates | `LIMIT 3` in the `warmup` action (`api/t.js`) and the text in `go.html` |
@@ -148,7 +156,7 @@ Commits are authored by Aya only (this folder's git config is set to Aya). Never
 ## 8. Test
 
 - **Quick check:** open the live app, create a session called "Test (delete me)", open the student link on your phone, rate, check the projector, then delete the session.
-- **Full end-to-end test (v2, Oct 11, 2026):** a Node script (puppeteer-core + headless Edge) that clicks every button and checks that every phone rating is stored and shown, for a one-tool session and a three-tool session with the AI warm-up and the 3D map: 78 checks, all passing. Each phone needs its **own browser context** (otherwise they share one rater token). After a deploy, purge the crolog cache (`vercel cache purge --yes` in `C:\Users\huger\crolog`) so the website serves the new files.
+- **Full end-to-end test (v2, Oct 11, 2026):** a Node script (puppeteer-core + headless Edge) that clicks every button and checks that every phone rating is stored and shown, for a one-tool session and a three-tool session with the AI warm-up and the 3D map; v2.1 adds sliders, decimals, comments, Save and Excel: 94 checks, all passing. Each phone needs its **own browser context** (otherwise they share one rater token). After a deploy, purge the crolog cache (`vercel cache purge --yes` in `C:\Users\huger\crolog`) so the website serves the new files.
 - Name every test session "(delete me)" and delete it after testing.
 
 ---
@@ -173,5 +181,6 @@ Commits are authored by Aya only (this folder's git config is set to Aya). Never
 
 | Version | Date | Changes |
 |---|---|---|
+| 2.1 | 2026-10-11 | Feedback from Prof. Chung and students: sliders (1.0–5.0) instead of number buttons; optional written comment per idea (anonymous, instructor only); maps show only each idea's average (no single-rating circles); idea colours red, blue, gold; results on students' phones on by default; Save (picture) on every map; Excel download with one sheet per presenter including comments |
 | 2.0 | 2026-10-11 | Simplified: one tool or all three (no rounds, no automatic lens assignment, no predictions, no triangle); students rate all ideas with every chosen tool; one map per tool like v3; 3D map for all three tools; AI reference ideas only for the Insight Lens, adjustable number (10–30); optional results on phones; fixes: messages no longer block buttons, full-screen QR fits the screen and closes with Esc |
 | 1.0 | 2026-10-10 | First release: three lenses with balanced assignment, AI reference ideas (Gemini) and AI obvious zone, warm-up, prediction pins, rounds with thinking moves and sources, live projector view, class map, summary, CSV export, changeable passcode, student and instructor guides |

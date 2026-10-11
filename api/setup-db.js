@@ -43,8 +43,8 @@ module.exports = async function handler(req, res) {
         session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
         ref_id INTEGER NOT NULL REFERENCES refs(id) ON DELETE CASCADE,
         token TEXT NOT NULL,
-        x INTEGER NOT NULL CHECK (x BETWEEN 1 AND 5),
-        y INTEGER NOT NULL CHECK (y BETWEEN 1 AND 5),
+        x REAL NOT NULL CHECK (x BETWEEN 1 AND 5),
+        y REAL NOT NULL CHECK (y BETWEEN 1 AND 5),
         created_at TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE (ref_id, token)
       )`;
@@ -73,13 +73,29 @@ module.exports = async function handler(req, res) {
         slot INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 3),
         lens TEXT NOT NULL CHECK (lens IN ('maya', 'meta', 'insight')),
         token TEXT NOT NULL,
-        x INTEGER NOT NULL CHECK (x BETWEEN 1 AND 5),
-        y INTEGER NOT NULL CHECK (y BETWEEN 1 AND 5),
+        x REAL NOT NULL CHECK (x BETWEEN 1 AND 5),
+        y REAL NOT NULL CHECK (y BETWEEN 1 AND 5),
         created_at TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE (session_id, student_id, round, slot, lens, token)
       )`;
     await sql`CREATE INDEX IF NOT EXISTS ratings_session ON ratings (session_id, round)`;
-    await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS live_results BOOLEAN NOT NULL DEFAULT FALSE`;
+    await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS live_results BOOLEAN NOT NULL DEFAULT TRUE`;
+    await sql`ALTER TABLE sessions ALTER COLUMN live_results SET DEFAULT TRUE`;
+    // Sliders: scores are decimals (1.0–5.0).
+    await sql`ALTER TABLE ratings ALTER COLUMN x TYPE REAL, ALTER COLUMN y TYPE REAL`;
+    await sql`ALTER TABLE ref_ratings ALTER COLUMN x TYPE REAL, ALTER COLUMN y TYPE REAL`;
+    // Written feedback: one optional comment per rater per idea (anonymous).
+    await sql`
+      CREATE TABLE IF NOT EXISTS comments (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        slot INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 3),
+        token TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (session_id, student_id, slot, token)
+      )`;
     await sql`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,

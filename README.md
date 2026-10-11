@@ -9,7 +9,7 @@ The MAYA Lens follows Raymond Loewy's MAYA principle; the Metaphor Lens follows 
 
 ## The three tools
 
-| Tool | Question | Scales (1–5) |
+| Tool | Question | Scales (sliders, 1.0–5.0) |
 |---|---|---|
 | MAYA Lens | Will people accept this product? | Familiarity × Novelty |
 | Metaphor Lens | How is the metaphor working? | Literalness of Representation × Effectiveness of UP & GP |
@@ -19,11 +19,12 @@ The MAYA Lens follows Raymond Loewy's MAYA principle; the Metaphor Lens follows 
 
 1. Before class, the instructor creates a session and chooses **one tool or all three** (never two), the number of ideas per presenter (1–3) and the class list.
 2. With the Insight Lens, the AI (Google Gemini) writes reference ideas from the **brief only** (10–30, default 24). Students rate 3 of them in a one-minute warm-up; this draws the grey **AI obvious zone** on the Insight map.
-3. Students scan one QR code. After each presentation they tap the presenter's name and rate **all the ideas**:
-   - **One tool:** two scales per idea, then Submit (like the Design Evaluation Suite v3).
+3. Students scan one QR code. After each presentation they tap the presenter's name and rate **all the ideas** with **sliders** (any value from 1.0 to 5.0, for example 3.4; every slider starts empty):
+   - **One tool:** two sliders per idea, then Submit (like the Design Evaluation Suite v3).
    - **All three tools:** MAYA → Next → Metaphor → Next → Insight → Submit.
-4. Results: one map per tool for each presenter (live projector view, optional results on phones), a whole-class map, and with all three tools a **3D map** where each idea is a point on the MAYA, Metaphor and Insight axes (each axis = closeness to that tool's target zone, 0–100).
-5. CSV downloads (ideas, all ratings, reference ideas), with names replaced by codes for research.
+   - On the last screen, an optional **written comment** per idea (anonymous, up to 300 characters, instructor only).
+4. Results: one map per tool for each presenter with each idea's class average (red, blue, gold), shown on the projector and, by default, on students' phones after Submit; a whole-class map; and with all three tools a **3D map** where each idea is a point on the MAYA, Metaphor and Insight axes (each axis = closeness to that tool's target zone, 0–100). Every map has a **Save** button (picture).
+5. Downloads: **Excel** (summary + one sheet per presenter with every tool's scores and the comments) and CSV files (ideas, all ratings, reference ideas), with names replaced by codes for research.
 
 ## Files
 
@@ -53,7 +54,7 @@ Deploy: `bash deploy.sh`
 
 ## Privacy
 
-Ratings are anonymous (a random phone code, never linked to a name and never returned by the API). Only the design brief is sent to the AI.
+Ratings and comments are anonymous (a random phone code, never linked to a name and never returned by the API). Comments are only in the instructor's downloads. Only the design brief is sent to the AI.
 
 ## License
 

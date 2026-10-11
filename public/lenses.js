@@ -142,6 +142,13 @@
     return { byKey: out, list: list, cloud: cloud, key: key };
   }
 
+  var SVG_STYLE = '<style>text{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif}' +
+    '.tick{font-size:10px;fill:#9a968c}.end{font-size:9.5px;fill:#9a968c}.axis{font-size:10.5px;font-weight:700;fill:#4b4a46}' +
+    '.quad{font-size:8.5px;font-weight:700;fill:#bdb6a6;letter-spacing:.08em}.zone{font-size:9px;font-weight:800;letter-spacing:.06em}' +
+    '.cloud{font-size:9px;font-weight:700;fill:#7b766a}.n{font-size:9px;font-weight:700}.lbl{font-size:10.5px;font-weight:700}</style>';
+  // Idea 3 is gold: give light colours a dark outline so they stay visible on white.
+  function outlineFor(col) { return col === '#E8A400' ? '#6b4e00' : '#fff'; }
+
   // ---------- SVG map (one tool) ----------
   // opts: lens, zone, cloud (Insight only), dots [{x,y,color}], items [{x,y,color,label}], small
   function svgMap(opts) {
@@ -149,7 +156,7 @@
     var pw = W - pad.l - pad.r, ph = H - pad.t - pad.b, lo = L.axisMin, span = 5 - lo;
     var X = function (v) { return pad.l + ((v - lo) / span) * pw; };
     var Y = function (v) { return pad.t + ph - ((v - lo) / span) * ph; };
-    var s = '<svg class="map" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' + esc(L.name) + ' map">';
+    var s = '<svg class="map" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' + esc(L.name) + ' map">' + SVG_STYLE;
     s += '<rect x="' + pad.l + '" y="' + pad.t + '" width="' + pw + '" height="' + ph + '" fill="#fff" stroke="#d9d6cf"/>';
     for (var v = lo; v <= 5; v++) {
       s += '<line x1="' + X(v) + '" y1="' + pad.t + '" x2="' + X(v) + '" y2="' + (pad.t + ph) + '" stroke="#efece6"/>';
@@ -192,10 +199,10 @@
     // Averages (diamonds) with labels
     (opts.items || []).forEach(function (it) {
       var ix = X(it.x), iy = Y(it.y), d = opts.small ? 7 : 8, col = it.color || L.color;
-      s += '<path d="M' + ix + ' ' + (iy - d) + ' L' + (ix + d) + ' ' + iy + ' L' + ix + ' ' + (iy + d) + ' L' + (ix - d) + ' ' + iy + 'Z" fill="' + col + '" stroke="#fff" stroke-width="2"/>';
+      s += '<path d="M' + ix + ' ' + (iy - d) + ' L' + (ix + d) + ' ' + iy + ' L' + ix + ' ' + (iy + d) + ' L' + (ix - d) + ' ' + iy + 'Z" fill="' + col + '" stroke="' + outlineFor(col) + '" stroke-width="' + (outlineFor(col) === '#fff' ? 2 : 1.4) + '"/>';
       if (it.label) {
         var right = ix < pad.l + pw - 70;
-        s += '<text x="' + (right ? ix + d + 4 : ix - d - 4) + '" y="' + (iy + 3.5) + '" class="lbl" fill="' + col + '" text-anchor="' + (right ? 'start' : 'end') + '" paint-order="stroke" stroke="#fff" stroke-width="3">' + esc(it.label) + '</text>';
+        s += '<text x="' + (right ? ix + d + 4 : ix - d - 4) + '" y="' + (iy + 3.5) + '" class="lbl" fill="' + (col === '#E8A400' ? '#8a6500' : col) + '" text-anchor="' + (right ? 'start' : 'end') + '" paint-order="stroke" stroke="#fff" stroke-width="3">' + esc(it.label) + '</text>';
       }
     });
     return s + '</svg>';
@@ -267,11 +274,11 @@
     pts.forEach(function (q) {
       line(q.f, q, q.p.color, 1, [3, 3]);
       ctx.beginPath(); ctx.arc(q.f.x, q.f.y, 2.2, 0, Math.PI * 2); ctx.fillStyle = q.p.color; ctx.globalAlpha = 0.5; ctx.fill(); ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(q.x, q.y, 7.5, 0, Math.PI * 2); ctx.fillStyle = q.p.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(q.x, q.y, 7.5, 0, Math.PI * 2); ctx.fillStyle = q.p.color; ctx.fill(); ctx.strokeStyle = outlineFor(q.p.color); ctx.lineWidth = outlineFor(q.p.color) === '#fff' ? 2 : 1.5; ctx.stroke();
       if (q.p.label) {
         ctx.font = '700 11.5px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.textAlign = 'left';
         ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.strokeText(q.p.label, q.x + 10, q.y + 4);
-        ctx.fillStyle = q.p.color; ctx.fillText(q.p.label, q.x + 10, q.y + 4); ctx.textAlign = 'center';
+        ctx.fillStyle = q.p.color === '#E8A400' ? '#8a6500' : q.p.color; ctx.fillText(q.p.label, q.x + 10, q.y + 4); ctx.textAlign = 'center';
       }
     });
     if (!pts.length) { ctx.fillStyle = '#9a968c'; ctx.font = '14px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.fillText('Ideas appear here once they have ratings with all three tools.', w / 2, h - 16); }
@@ -286,7 +293,7 @@
   }
 
   // ---------- One presenter's results (like v3: one map per tool, every idea on it) ----------
-  var IDEA_COLORS = ['#c1433c', '#2f6f9f', '#2d7a4d'];
+  var IDEA_COLORS = ['#D62828', '#1D4ED8', '#E8A400'];
   function presenterHtml(data, comp, studentId, opts) {
     opts = opts || {};
     var html = '<div class="tool-grid tools-' + data.lenses.length + '">';
@@ -296,20 +303,21 @@
         var r = comp.byKey[comp.key(studentId, i)], lr = r && r.lens[l];
         if (!lr || !lr.n) continue;
         n = Math.max(n, lr.n);
-        lr.ratings.forEach(function (x) { dots.push({ x: x.x, y: x.y, color: IDEA_COLORS[i - 1] }); });
         items.push({ x: lr.x, y: lr.y, color: IDEA_COLORS[i - 1], label: data.ideasPer > 1 ? String(i) : '' });
         rows += '<div class="idea-row"><span class="idea-sw" style="background:' + IDEA_COLORS[i - 1] + '"></span><div><b>' + (data.ideasPer > 1 ? 'Idea ' + i : 'The idea') + '</b> · ' +
           esc(L.x.name.split(' (')[0]) + ' ' + lr.x.toFixed(1) + ' · ' + esc((L.y.axisName || L.y.name)) + ' ' + lr.y.toFixed(1) +
           '<div class="idea-sug">' + (lr.inZone ? '✔ ' : '↗ ') + esc(lr.sug) + (l === 'insight' && r.obvious && r.obvious.inside ? ' <span class="flag-inline">Close to the AI ideas for this brief.</span>' : '') + '</div></div></div>';
       }
       html += '<div class="tool-card" style="border-top-color:' + L.color + '"><div class="tool-head"><span class="tool-name" style="color:' + L.color + '">' + L.name + '</span><span class="muted small">' +
-        (n ? n + ' rating' + (n === 1 ? '' : 's') : 'no ratings yet') + '</span></div><div class="tool-q">' + L.question + '</div>' +
+        (n ? n + ' rating' + (n === 1 ? '' : 's') : 'no ratings yet') + '</span>' +
+        '<button type="button" class="save-btn" data-title="' + esc((opts.title ? opts.title + ' · ' : '') + L.name) + '">Save</button></div><div class="tool-q">' + L.question + '</div>' +
         svgMap({ lens: l, zone: data.zones[l], cloud: l === 'insight' ? comp.cloud : null, dots: dots, items: items, small: true }) +
         (rows || '<p class="muted small" style="padding:8px 0">Ratings appear here as classmates press Submit.</p>') + '</div>';
     });
     html += '</div>';
     if (data.lenses.length === 3) {
-      html += '<div class="cube-card"><div class="tool-head"><span class="tool-name">3D map: all three tools</span><span class="muted small">Drag to turn it · double-click to reset</span></div>' +
+      html += '<div class="cube-card"><div class="tool-head"><span class="tool-name">3D map: all three tools</span><span class="muted small">Drag to turn it · double-click to reset</span>' +
+        '<button type="button" class="save-btn" data-title="' + esc((opts.title ? opts.title + ' · ' : '') + '3D map') + '">Save</button></div>' +
         '<p class="tool-q">Each axis shows how close the idea is to that tool’s target zone (100 = inside the zone). The glowing corner is where an idea is in all three zones.</p>' +
         '<div class="cube-wrap"><canvas class="cube" data-cube="' + esc(opts.cubeKey || 'p') + '"></canvas></div></div>';
     }
@@ -321,10 +329,45 @@
     mount3D(cv, points3D(mine, function (r) { return IDEA_COLORS[r.slot - 1]; }, function (r) { return data.ideasPer > 1 ? 'Idea ' + r.slot : ''; }), key);
   }
 
+  // ---------- Save a map as a picture (PNG): download on a computer, share/save on a phone ----------
+  function saveMap(el, title) {
+    var W = 1200, pad = 40, head = 80;
+    function finish(img, iw, ih) {
+      var scale = (W - pad * 2) / iw, h = Math.round(ih * scale) + head + pad;
+      var c = document.createElement('canvas'); c.width = W; c.height = h;
+      var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, h);
+      x.fillStyle = '#1f2a44'; x.font = '700 30px -apple-system,Segoe UI,Roboto,Arial,sans-serif'; x.fillText(title || 'TRILUME map', pad, 52);
+      x.fillStyle = '#9a968c'; x.font = '18px -apple-system,Segoe UI,Roboto,Arial,sans-serif'; x.textAlign = 'right'; x.fillText('TRILUME · ' + new Date().toLocaleDateString(), W - pad, 52); x.textAlign = 'left';
+      x.drawImage(img, pad, head, iw * scale, ih * scale);
+      c.toBlob(function (blob) {
+        var name = ('TRILUME ' + (title || 'map')).replace(/[^\w\- ]+/g, '').replace(/\s+/g, '_').slice(0, 80) + '.png';
+        var file = window.File ? new File([blob], name, { type: 'image/png' }) : null;
+        var mobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+        if (mobile && file && navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: name }).catch(function () {});
+          return;
+        }
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      }, 'image/png');
+    }
+    if (el.tagName.toLowerCase() === 'canvas') { finish(el, el.width, el.height); return; }
+    var svg = new XMLSerializer().serializeToString(el);
+    var img = new Image();
+    img.onload = function () { finish(img, 340 * 3, 330 * 3); };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.save-btn'); if (!b) return;
+    var card = b.closest('.tool-card, .cube-card, .card'), el = card && (card.querySelector('canvas.cube') || card.querySelector('svg.map'));
+    if (el) saveMap(el, b.dataset.title);
+  });
+
   window.TL = {
     LENSES: LENSES, ORDER: ORDER, PRODUCT_TYPES: PRODUCT_TYPES, REGIONS: REGIONS, IDEA_COLORS: IDEA_COLORS,
     esc: esc, mean: mean, inZone: inZone, closeness: closeness, region: region, suggestion: suggestion, describe: describe,
     colorFor: colorFor, cloudOf: cloudOf, compute: compute, svgMap: svgMap, mount3D: mount3D, points3D: points3D,
-    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views
+    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views, saveMap: saveMap
   };
 })();

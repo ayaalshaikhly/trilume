@@ -246,3 +246,20 @@ canvas.cube:active { cursor: grabbing; }
 .tool-opt .to-name { font-weight: 800; }
 .tool-opt .to-q { font-size: .82rem; color: var(--muted); margin-top: 4px; }
 .tool-opt.on { border-color: var(--c, var(--ink)); background: var(--cs, var(--accent-soft)); }
+
+/* ---------- v2.1: sliders, comments, Save buttons ---------- */
+.slider { padding: 10px 2px 2px; }
+.slider input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 34px; background: transparent; margin: 0; cursor: pointer; touch-action: manipulation; }
+.slider input[type=range]::-webkit-slider-runnable-track { height: 10px; border-radius: 999px; background: linear-gradient(90deg, #ece8e0, var(--c, #1f2a44)); }
+.slider input[type=range]::-moz-range-track { height: 10px; border-radius: 999px; background: linear-gradient(90deg, #ece8e0, var(--c, #1f2a44)); }
+.slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 4px solid var(--c, #1f2a44); margin-top: -10px; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+.slider input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 4px solid var(--c, #1f2a44); box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+.slider input[type=range].untouched::-webkit-slider-thumb { opacity: 0; }
+.slider input[type=range].untouched::-moz-range-thumb { opacity: 0; }
+.ticks { display: flex; justify-content: space-between; padding: 0 9px; font-size: .8rem; font-weight: 700; color: #6b6a66; }
+.idea-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.comment { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 6px; }
+.comment-box { min-height: 80px; margin-top: 6px; font-size: .95rem; }
+.save-btn { border: 1px solid var(--line); background: #fff; border-radius: 9px; padding: 4px 12px; font-weight: 700; font-size: .82rem; color: var(--ink); cursor: pointer; min-height: 34px; margin-left: auto; }
+.save-btn:hover { border-color: var(--ink); }
+.save-btn::before { content: '\2193  '; }

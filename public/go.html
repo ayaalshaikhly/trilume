@@ -82,7 +82,7 @@
   <script>
   (function () {
     var sid = new URLSearchParams(location.search).get('s');
-    var S = null, view = null, current = null, step = 0, answers = {}, liveTimer = null, liveSig = '';
+    var S = null, view = null, current = null, step = 0, answers = {}, comments = {}, liveTimer = null, liveSig = '';
     var L = TL.LENSES;
 
     function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
@@ -104,28 +104,34 @@
     }
     function toast(msg) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2600); }
 
-    // ---------- Scales ----------
+    // ---------- Scales: a slider from 1.0 to 5.0 (steps of 0.1) ----------
+    // The thumb is hidden until the student touches the bar, so nobody leaves a slider in the middle by accident.
+    function nearest(lens, axis, v) { return L[lens][axis].levels[Math.min(5, Math.max(1, Math.round(v)))]; }
+    function descText(lens, axis, v) {
+      var t = nearest(lens, axis, v), i = t.indexOf(':');
+      return '<b>' + Number(v).toFixed(1) + '</b> · closest to <b>' + TL.esc(t.slice(0, i)) + '</b>:' + TL.esc(t.slice(i + 1));
+    }
     function scaleHtml(lens, axis, name, value) {
-      var d = L[lens][axis];
-      return '<div class="dim" data-lens="' + lens + '" data-axis="' + axis + '" data-name="' + name + '"' + (value ? ' data-value="' + value + '"' : '') + '>' +
+      var d = L[lens][axis], has = value != null && value !== '';
+      return '<div class="dim" data-lens="' + lens + '" data-axis="' + axis + '" data-name="' + name + '"' + (has ? ' data-value="' + value + '"' : '') + '>' +
         '<div class="dim-name">' + TL.esc(d.name) + '</div><div class="dim-q">' + TL.esc(d.question) + '</div>' +
-        '<div class="scale">' + [1, 2, 3, 4, 5].map(function (v) {
-          var on = String(v) === String(value);
-          return '<button type="button" data-v="' + v + '"' + (on ? ' class="on" style="background:' + L[lens].color + ';border-color:' + L[lens].color + '"' : '') + '>' + v + '</button>';
-        }).join('') + '</div>' +
-        '<div class="scale-ends"><span>1 = ' + TL.esc(d.low) + '</span><span>5 = ' + TL.esc(d.high) + '</span></div>' +
-        '<div class="level-desc' + (value ? ' chosen' : '') + '">' + (value ? value + ' = ' + TL.esc(d.levels[value]) : 'Tap a number to see what it means.') + '</div></div>';
+        '<div class="slider"><input type="range" min="1" max="5" step="0.1" value="' + (has ? value : 3) + '" class="' + (has ? '' : 'untouched') + '" style="--c:' + L[lens].color + '" aria-label="' + TL.esc(d.name) + '"></div>' +
+        '<div class="ticks"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>' +
+        '<div class="scale-ends"><span>' + TL.esc(d.low) + '</span><span>' + TL.esc(d.high) + '</span></div>' +
+        '<div class="level-desc' + (has ? ' chosen' : '') + '">' + (has ? descText(lens, axis, value) : 'Tap or drag on the bar. You can choose any value, for example 1.3 or 3.8.') + '</div></div>';
     }
     function wireScales(root, onChange) {
-      root.addEventListener('click', function (e) {
-        var b = e.target.closest('.scale button'); if (!b) return;
-        var dim = b.closest('.dim'), lens = dim.dataset.lens, axis = dim.dataset.axis, v = b.dataset.v;
-        dim.querySelectorAll('.scale button').forEach(function (x) { x.classList.remove('on'); x.style.background = ''; x.style.borderColor = ''; });
-        b.classList.add('on'); b.style.background = L[lens].color; b.style.borderColor = L[lens].color;
+      function set(input) {
+        var dim = input.closest('.dim'), v = Math.round(parseFloat(input.value) * 10) / 10;
+        input.classList.remove('untouched');
         dim.dataset.value = v;
-        var desc = dim.querySelector('.level-desc'); desc.textContent = v + ' = ' + L[lens][axis].levels[v]; desc.classList.add('chosen');
+        var desc = dim.querySelector('.level-desc'); desc.innerHTML = descText(dim.dataset.lens, dim.dataset.axis, v); desc.classList.add('chosen');
         onChange(dim, v);
-      });
+      }
+      root.addEventListener('input', function (e) { if (e.target.type === 'range') set(e.target); });
+      // A tap without moving (for example on the current value) also counts.
+      root.addEventListener('change', function (e) { if (e.target.type === 'range') set(e.target); });
+      root.addEventListener('pointerup', function (e) { if (e.target.type === 'range' && e.target.classList.contains('untouched')) set(e.target); });
     }
     function allChosen(root) { var d = root.querySelectorAll('.dim'); return d.length > 0 && Array.prototype.every.call(d, function (x) { return !!x.dataset.value; }); }
 
@@ -159,7 +165,7 @@
     wireScales(document.getElementById('warmForm'), function () { document.getElementById('warmSubmit').disabled = !allChosen(document.getElementById('warmForm')); });
     document.getElementById('warmSubmit').addEventListener('click', function () {
       var f = document.getElementById('warmForm'), btn = this; btn.disabled = true; btn.textContent = 'Sending…';
-      var val = function (n) { return parseInt(f.querySelector('.dim[data-name="' + n + '"]').dataset.value); };
+      var val = function (n) { return parseFloat(f.querySelector('.dim[data-name="' + n + '"]').dataset.value); };
       var ratings = warmRefs.map(function (r) { return { ref: r.id, x: val('r' + r.id + 'x'), y: val('r' + r.id + 'y') }; });
       api('rateRefs', '', { token: token, ratings: ratings }).then(function () {
         store('tl_warm_' + sid, '1'); btn.textContent = 'Done, start rating'; toast('Thank you! Warm-up done.'); toList();
@@ -194,7 +200,7 @@
 
     // ---------- Rate: one tool, or the three tools one after another ----------
     function openRate(p) {
-      current = p; step = 0; answers = {};
+      current = p; step = 0; answers = {}; comments = {};
       document.getElementById('rateName').textContent = p.name;
       renderStep(); show('rateView');
     }
@@ -204,10 +210,15 @@
       var ban = document.getElementById('lensBanner');
       ban.style.background = Ln.color;
       ban.innerHTML = '<div class="lb-small">' + (many ? 'Tool ' + (step + 1) + ' of ' + S.lenses.length : 'Your tool') + '</div><div class="lb-name">' + Ln.name + '</div><div class="lb-q">' + Ln.question + '</div>';
+      var lastStep = step === S.lenses.length - 1;
       for (var i = 1; i <= S.ideasPer; i++) {
-        var a = answers[lens + '_' + i] || {};
-        html += '<div class="idea-block">' + (S.ideasPer > 1 ? '<h3>Idea ' + i + '</h3>' : '') +
-          scaleHtml(lens, 'x', lens + '_' + i + '_x', a.x) + scaleHtml(lens, 'y', lens + '_' + i + '_y', a.y) + '</div>';
+        var a = answers[lens + '_' + i] || {}, c = comments[i] || '';
+        html += '<div class="idea-block">' + (S.ideasPer > 1 ? '<h3><span class="idea-dot" style="background:' + TL.IDEA_COLORS[i - 1] + '"></span>Idea ' + i + '</h3>' : '') +
+          scaleHtml(lens, 'x', lens + '_' + i + '_x', a.x) + scaleHtml(lens, 'y', lens + '_' + i + '_y', a.y) +
+          // Optional written feedback, once per idea, on the last step only.
+          (lastStep ? '<div class="comment"><button type="button" class="link-btn add-comment' + (c ? ' hidden' : '') + '" data-slot="' + i + '">+ Add a comment (optional)</button>' +
+            '<textarea class="comment-box' + (c ? '' : ' hidden') + '" data-slot="' + i + '" maxlength="300" placeholder="Your feedback on ' + (S.ideasPer > 1 ? 'idea ' + i : 'this idea') + ' (anonymous)">' + TL.esc(c) + '</textarea></div>' : '') +
+          '</div>';
       }
       document.getElementById('rateForm').innerHTML = html;
       document.getElementById('prevStep').classList.toggle('hidden', step === 0);
@@ -218,8 +229,15 @@
     }
     wireScales(document.getElementById('rateForm'), function (dim, v) {
       var parts = dim.dataset.name.split('_'), k = parts[0] + '_' + parts[1];
-      answers[k] = answers[k] || {}; answers[k][parts[2]] = parseInt(v);
+      answers[k] = answers[k] || {}; answers[k][parts[2]] = parseFloat(v);
       document.getElementById('nextStep').disabled = !allChosen(document.getElementById('rateForm'));
+    });
+    document.getElementById('rateForm').addEventListener('click', function (e) {
+      var b = e.target.closest('.add-comment'); if (!b) return;
+      var box = b.parentElement.querySelector('.comment-box'); b.classList.add('hidden'); box.classList.remove('hidden'); box.focus();
+    });
+    document.getElementById('rateForm').addEventListener('input', function (e) {
+      if (e.target.classList.contains('comment-box')) comments[e.target.dataset.slot] = e.target.value;
     });
     document.getElementById('prevStep').addEventListener('click', function () { if (step > 0) { step--; renderStep(); } });
     document.getElementById('rateBack').addEventListener('click', function () {
@@ -233,7 +251,8 @@
         for (var i = 1; i <= S.ideasPer; i++) { var a = answers[l + '_' + i]; ratings.push({ lens: l, slot: i, x: a.x, y: a.y }); }
       });
       btn.disabled = true; btn.textContent = 'Sending…';
-      api('rate', '', { student: current.id, token: token, ratings: ratings }).then(function () {
+      var cm = []; for (var k = 1; k <= S.ideasPer; k++) cm.push({ slot: k, text: (comments[k] || '').trim() });
+      api('rate', '', { student: current.id, token: token, ratings: ratings, comments: cm }).then(function () {
         var d = rated(); d[current.id] = 1; store(ratedKey, JSON.stringify(d));
         toast('Thank you! Your rating for ' + current.name + ' was sent.');
         return refresh().then(function () { if (S.liveResults) openLive(current); else toList(); });
@@ -255,7 +274,7 @@
         var comp = TL.compute(data), raters = mine.filter(function (r) { return r.slot === 1 && r.lens === data.lenses[0]; }).length;
         document.getElementById('liveCount').textContent = raters + ' classmate' + (raters === 1 ? '' : 's') + ' rated so far. It updates as others rate. Feedback to help the idea grow, not a grade.';
         var body = document.getElementById('liveBody');
-        body.innerHTML = TL.presenterHtml(data, comp, current.id, { cubeKey: 'phone' });
+        body.innerHTML = TL.presenterHtml(data, comp, current.id, { cubeKey: 'phone', title: current.name });
         TL.mountPresenterCube(body, data, comp, current.id, 'phone');
       }).catch(function () {});
     }

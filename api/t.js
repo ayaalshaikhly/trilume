@@ -54,6 +54,8 @@ function clampZone(z, d) {
   z = z || {};
   return { cx: num(z.cx, 0, 5, d.cx), cy: num(z.cy, 0, 5, d.cy), rx: num(z.rx, 0.2, 2, d.rx), ry: num(z.ry, 0.2, 2, d.ry) };
 }
+// Slider score: 1.0–5.0 rounded to one decimal, or NaN if invalid.
+function score(v) { const n = Math.round(parseFloat(v) * 10) / 10; return n >= 1 && n <= 5 ? n : NaN; }
 function cleanText(s, max) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, max); }
 function cleanNames(names) {
   if (!Array.isArray(names)) return [];
@@ -152,17 +154,29 @@ module.exports = async function handler(req, res) {
       const st = await sql`SELECT id FROM students WHERE id = ${student} AND session_id = ${s.id} AND active = TRUE`;
       if (!st.length) return res.status(404).json({ error: 'Presenter not found' });
       for (const r of body.ratings) {
-        const slot = parseInt(r.slot), x = parseInt(r.x), y = parseInt(r.y);
-        if (!lenses.includes(r.lens) || !(slot >= 1 && slot <= s.ideas_per) || !(x >= 1 && x <= 5) || !(y >= 1 && y <= 5)) {
+        const slot = parseInt(r.slot), x = score(r.x), y = score(r.y);
+        if (!lenses.includes(r.lens) || !(slot >= 1 && slot <= s.ideas_per) || isNaN(x) || isNaN(y)) {
           return res.status(400).json({ error: 'Each idea needs two scores from 1 to 5 for each tool' });
         }
       }
       for (const r of body.ratings) {
         await sql`
           INSERT INTO ratings (session_id, student_id, round, slot, lens, token, x, y)
-          VALUES (${s.id}, ${student}, 1, ${parseInt(r.slot)}, ${r.lens}, ${token}, ${parseInt(r.x)}, ${parseInt(r.y)})
+          VALUES (${s.id}, ${student}, 1, ${parseInt(r.slot)}, ${r.lens}, ${token}, ${score(r.x)}, ${score(r.y)})
           ON CONFLICT (session_id, student_id, round, slot, lens, token)
           DO UPDATE SET x = EXCLUDED.x, y = EXCLUDED.y, created_at = NOW()`;
+      }
+      // Optional written feedback, one per idea (anonymous). An empty box removes an earlier comment.
+      for (const c of (Array.isArray(body.comments) ? body.comments : [])) {
+        const slot = parseInt(c.slot), text = cleanText(c.text, 300);
+        if (!(slot >= 1 && slot <= s.ideas_per)) continue;
+        if (text) {
+          await sql`
+            INSERT INTO comments (session_id, student_id, slot, token, text) VALUES (${s.id}, ${student}, ${slot}, ${token}, ${text})
+            ON CONFLICT (session_id, student_id, slot, token) DO UPDATE SET text = EXCLUDED.text, created_at = NOW()`;
+        } else {
+          await sql`DELETE FROM comments WHERE session_id = ${s.id} AND student_id = ${student} AND slot = ${slot} AND token = ${token}`;
+        }
       }
       return res.status(200).json({ ok: true });
     }
@@ -188,8 +202,8 @@ module.exports = async function handler(req, res) {
       const token = cleanText(body.token, 64);
       if (!token || !Array.isArray(body.ratings)) return res.status(400).json({ error: 'Missing ratings' });
       for (const r of body.ratings.slice(0, 5)) {
-        const ref = parseInt(r.ref), x = parseInt(r.x), y = parseInt(r.y);
-        if (!(x >= 1 && x <= 5) || !(y >= 1 && y <= 5)) continue;
+        const ref = parseInt(r.ref), x = score(r.x), y = score(r.y);
+        if (isNaN(x) || isNaN(y)) continue;
         const ok = await sql`SELECT id FROM refs WHERE id = ${ref} AND session_id = ${s.id}`;
         if (!ok.length) continue;
         await sql`
@@ -250,8 +264,8 @@ module.exports = async function handler(req, res) {
       const refs = lenses.includes('insight') ? cleanRefs(body.refs) : [];
       const ai = body.ai || {};
       await sql`
-        INSERT INTO sessions (id, title, brief, product_type, lenses, zones, ideas_per, ai_model, ai_prompt, ai_date)
-        VALUES (${id}, ${title}, ${cleanText(body.brief, 600)}, ${product}, ${lenses.join(',')}, ${JSON.stringify(zones)}::jsonb, ${ideasPer},
+        INSERT INTO sessions (id, title, brief, product_type, lenses, zones, ideas_per, live_results, ai_model, ai_prompt, ai_date)
+        VALUES (${id}, ${title}, ${cleanText(body.brief, 600)}, ${product}, ${lenses.join(',')}, ${JSON.stringify(zones)}::jsonb, ${ideasPer}, TRUE,
                 ${cleanText(ai.model, 80) || (refs.length ? 'typed by instructor' : '')}, ${String(ai.prompt || '').slice(0, 2000)},
                 ${refs.length ? new Date().toISOString() : null})`;
       for (let i = 0; i < names.length; i++) {
@@ -299,6 +313,11 @@ module.exports = async function handler(req, res) {
       const fresh = await loadSession(sql, s.id);
       const students = await loadStudents(sql, s.id);
       return res.status(200).json({ ...sessionOut(fresh), students });
+    }
+
+    if (action === 'comments') {
+      const rows = await sql`SELECT student_id, slot, text, created_at FROM comments WHERE session_id = ${String(body.id || '')} ORDER BY student_id, slot, created_at`;
+      return res.status(200).json({ comments: rows });
     }
 
     if (action === 'refs') {
