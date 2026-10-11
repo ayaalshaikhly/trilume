@@ -329,16 +329,32 @@
     mount3D(cv, points3D(mine, function (r) { return IDEA_COLORS[r.slot - 1]; }, function (r) { return data.ideasPer > 1 ? 'Idea ' + r.slot : ''; }), key);
   }
 
+  // ---------- A map as a picture: a canvas with a title line, then the map ----------
+  function mapCanvas(el, title, W) {
+    W = W || 1200;
+    var pad = Math.round(W / 30), head = Math.round(W / 15);
+    return new Promise(function (resolve) {
+      function finish(img, iw, ih) {
+        var scale = (W - pad * 2) / iw, h = Math.round(ih * scale) + head + pad;
+        var c = document.createElement('canvas'); c.width = W; c.height = h;
+        var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, h);
+        x.fillStyle = '#1f2a44'; x.font = '700 ' + Math.round(W / 40) + 'px -apple-system,Segoe UI,Roboto,Arial,sans-serif'; x.fillText(title || 'TRILUME map', pad, head * 0.65);
+        x.fillStyle = '#9a968c'; x.font = Math.round(W / 66) + 'px -apple-system,Segoe UI,Roboto,Arial,sans-serif'; x.textAlign = 'right'; x.fillText('TRILUME · ' + new Date().toLocaleDateString(), W - pad, head * 0.65); x.textAlign = 'left';
+        x.drawImage(img, pad, head, iw * scale, ih * scale);
+        resolve(c);
+      }
+      if (el.tagName.toLowerCase() === 'canvas') { finish(el, el.width, el.height); return; }
+      var img = new Image();
+      img.onload = function () { finish(img, 340 * 3, 330 * 3); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(el));
+    });
+  }
+  // PNG data URL (used for the results emails).
+  function mapToPng(el, title, W) { return mapCanvas(el, title, W).then(function (c) { return c.toDataURL('image/png'); }); }
+
   // ---------- Save a map as a picture (PNG): download on a computer, share/save on a phone ----------
   function saveMap(el, title) {
-    var W = 1200, pad = 40, head = 80;
-    function finish(img, iw, ih) {
-      var scale = (W - pad * 2) / iw, h = Math.round(ih * scale) + head + pad;
-      var c = document.createElement('canvas'); c.width = W; c.height = h;
-      var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, h);
-      x.fillStyle = '#1f2a44'; x.font = '700 30px -apple-system,Segoe UI,Roboto,Arial,sans-serif'; x.fillText(title || 'TRILUME map', pad, 52);
-      x.fillStyle = '#9a968c'; x.font = '18px -apple-system,Segoe UI,Roboto,Arial,sans-serif'; x.textAlign = 'right'; x.fillText('TRILUME · ' + new Date().toLocaleDateString(), W - pad, 52); x.textAlign = 'left';
-      x.drawImage(img, pad, head, iw * scale, ih * scale);
+    mapCanvas(el, title, 1200).then(function (c) {
       c.toBlob(function (blob) {
         var name = ('TRILUME ' + (title || 'map')).replace(/[^\w\- ]+/g, '').replace(/\s+/g, '_').slice(0, 80) + '.png';
         var file = window.File ? new File([blob], name, { type: 'image/png' }) : null;
@@ -351,12 +367,7 @@
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
       }, 'image/png');
-    }
-    if (el.tagName.toLowerCase() === 'canvas') { finish(el, el.width, el.height); return; }
-    var svg = new XMLSerializer().serializeToString(el);
-    var img = new Image();
-    img.onload = function () { finish(img, 340 * 3, 330 * 3); };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    });
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest('.save-btn'); if (!b) return;
@@ -407,6 +418,6 @@
     LENSES: LENSES, ORDER: ORDER, PRODUCT_TYPES: PRODUCT_TYPES, REGIONS: REGIONS, IDEA_COLORS: IDEA_COLORS,
     esc: esc, mean: mean, inZone: inZone, closeness: closeness, region: region, suggestion: suggestion, describe: describe,
     colorFor: colorFor, cloudOf: cloudOf, compute: compute, svgMap: svgMap, mount3D: mount3D, points3D: points3D,
-    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views, saveMap: saveMap, triangleSvg: triangleSvg
+    presenterHtml: presenterHtml, mountPresenterCube: mountPresenterCube, views: views, saveMap: saveMap, mapToPng: mapToPng, triangleSvg: triangleSvg
   };
 })();

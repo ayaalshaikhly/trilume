@@ -270,3 +270,8 @@ canvas.cube:active { cursor: grabbing; }
 .name-list li { margin: 3px 0; }
 .name-tri svg { width: 100%; height: auto; display: block; }
 @media (max-width: 600px) { .name-row { grid-template-columns: 1fr; } .name-tri { max-width: 260px; margin: 0 auto; } }
+
+/* Class list rows: name + email */
+.person-row { display: grid; grid-template-columns: 1fr 1.2fr 34px; gap: 8px; margin-bottom: 6px; align-items: center; }
+.person-row input { min-height: 42px; padding: 8px 12px; }
+@media (max-width: 560px) { .person-row { grid-template-columns: 1fr 34px; } .person-row .p-email { grid-column: 1; } .person-row .x-btn { grid-row: 1; grid-column: 2; } }

@@ -48,6 +48,8 @@ Students rate with **sliders** (1.0–5.0, steps of 0.1; each starts empty) and 
 | `DATABASE_URL` | Neon connection string |
 | `INSTRUCTOR_PASSCODE` | The first passcode. Once the passcode is changed in the app, the salted hash in the `settings` table is used instead |
 | `GEMINI_API_KEY` | Google AI Studio key (Aya's Google account) |
+| `GMAIL_USER` | The TRILUME Gmail address that sends results emails |
+| `GMAIL_APP_PASSWORD` | Its Google **App password** (Google Account → Security → App passwords; needs 2-Step Verification). If emails stop working, create a new one and replace this value |
 | `GEMINI_MODEL` | Optional. Overrides the model (default `gemini-flash-latest`, with fallbacks) |
 
 Change them in Vercel → project `trilume` → Settings → Environment Variables, then redeploy.
@@ -80,12 +82,14 @@ Pages load their CSS/JS through a `document.write('<base href=...>')` line at th
 | `rateRefs` submit warm-up ratings | `create`, `update`, `delete`, `eraseAll`, `list` |
 | `results` everything needed to draw results (no rater tokens, no comments) | `refs` list reference ideas |
 | | `comments` the written comments (instructor only) |
+| | `roster` the class list with emails and "sent" times |
+| | `sendResults` email one presenter (or `preview`, or `test` to another address) |
 
 ### Database (`api/setup-db.js`)
 | Table | One row per |
 |---|---|
 | `sessions` | class activity: title, brief, product type, lenses (`maya`, `meta`, `insight`, or all three), zones (JSON), ideas per presenter, hide names, warm-up on/off, results on phones (`live_results`, on by default), AI model/prompt/date |
-| `students` | name in the class list (`active = false` when removed; ratings are kept) |
+| `students` (`email`, `emailed_at`) | name in the class list (`active = false` when removed; ratings are kept) |
 | `refs` | AI reference idea (title, reasoning) |
 | `ref_ratings` | warm-up rating of one reference idea by one phone (Insight Lens, decimals) |
 | `ratings` | rater phone × presenter × idea (slot 1–3) × tool: x, y (decimals 1.0–5.0). The `round` column is always 1 (rounds were removed in v2) |
@@ -120,7 +124,9 @@ Ratings are anonymous: the `token` is a random code stored on the phone, used on
 | Change the slider (range, step, text) | `scaleHtml()` and `descText()` in `public/go.html`; the server accepts 1.0–5.0 (`score()` in `api/t.js`) |
 | Change the comment box | `renderStep()` in `public/go.html` (max 300 characters, also limited in `api/t.js`) |
 | Change the Excel download | the `dlExcel` click handler in `public/index.html` |
-| Change the saved picture | `saveMap()` in `public/lenses.js` |
+| Change the saved picture | `saveMap()` / `mapCanvas()` in `public/lenses.js` |
+| Change the results email (layout, text) | `buildHtml()` in `api/_email.js` |
+| Change what goes into the email | `buildEmail()` in `public/index.html` (text summary and map pictures) and the `sendResults` action in `api/t.js` |
 | Change the 3D map | `draw3D()` in `public/lenses.js` |
 | Change the AI model | Vercel variable `GEMINI_MODEL`, or the `MODELS` list in `api/t.js` |
 | Change how many warm-up ideas each student rates | `LIMIT 3` in the `warmup` action (`api/t.js`) and the text in `go.html` |
@@ -183,6 +189,7 @@ Commits are authored by Aya only (this folder's git config is set to Aya). Never
 
 | Version | Date | Changes |
 |---|---|---|
+| 2.2 | 2026-10-11 | Email results: class list with name + email (Excel or rows), "Email results to presenters" card (preview, test, send all, per-student send, ✓ Sent), HTML email from the TRILUME Gmail account with logo, scores, suggestions, maps and comments (tick box, on by default); About on the public first page; RGB tool colours; "What does TRILUME mean?" triangle |
 | 2.1 | 2026-10-11 | Feedback from Prof. Chung and students: sliders (1.0–5.0) instead of number buttons; optional written comment per idea (anonymous, instructor only); maps show only each idea's average (no single-rating circles); idea colours red, blue, gold; results on students' phones on by default; Save (picture) on every map; Excel download with one sheet per presenter including comments |
 | 2.0 | 2026-10-11 | Simplified: one tool or all three (no rounds, no automatic lens assignment, no predictions, no triangle); students rate all ideas with every chosen tool; one map per tool like v3; 3D map for all three tools; AI reference ideas only for the Insight Lens, adjustable number (10–30); optional results on phones; fixes: messages no longer block buttons, full-screen QR fits the screen and closes with Esc |
 | 1.0 | 2026-10-10 | First release: three lenses with balanced assignment, AI reference ideas (Gemini) and AI obvious zone, warm-up, prediction pins, rounds with thinking moves and sources, live projector view, class map, summary, CSV export, changeable passcode, student and instructor guides |

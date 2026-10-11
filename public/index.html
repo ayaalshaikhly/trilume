@@ -123,11 +123,11 @@
         <div class="step-head"><span class="step-num">3</span><h2>Class list</h2></div>
         <div class="row">
           <label class="btn btn-sm" style="cursor:pointer">Upload Excel or CSV<input type="file" id="nFile" accept=".xlsx,.xls,.csv" class="hidden"></label>
-          <span class="small muted" id="nFileMsg">For example, the Brightspace class list.</span>
+          <span class="small muted" id="nFileMsg">For example, the Brightspace class list (names and emails).</span>
         </div>
-        <label class="f" for="nNames">Or type the names, one per line</label>
-        <textarea id="nNames" placeholder="Alex Martin&#10;Sam Lee&#10;…"></textarea>
-        <p class="f-hint" id="nCount">0 names</p>
+        <label class="f">Or type each student: name and email <span class="muted small">(email is optional; it is only used to email each presenter their results)</span></label>
+        <div id="nPeople"></div>
+        <p class="f-hint" id="nCount">0 students</p>
       </div>
 
       <div class="card" id="nAiCard">
@@ -186,6 +186,20 @@
             <p class="small" id="warmText"></p>
             <div class="row" style="margin-top:12px"><button class="btn btn-sm" id="warmToggle"></button></div>
           </div>
+        </div>
+        <div class="card" id="mailCard">
+          <div class="row"><h2>Email results to presenters</h2><div class="spacer"></div><span class="small muted" id="mailFrom"></span></div>
+          <p class="small">After class, send each presenter their results from the TRILUME email account: the scores and suggestion for each idea, the map pictures and, if ticked, classmates’ comments. Presenters without an email address are skipped. Add emails in <b>Settings → Class list</b>.</p>
+          <label class="row small" style="margin:10px 0;cursor:pointer"><input type="checkbox" id="mailComments" checked> Include classmates’ comments</label>
+          <div class="row">
+            <button class="btn" id="mailPreview">Preview an email</button>
+            <input type="text" id="mailTestTo" placeholder="Your email for a test" style="width:240px;min-height:44px">
+            <button class="btn" id="mailTest">Send a test</button>
+            <div class="spacer"></div>
+            <button class="btn btn-gold" id="mailAll">Email all presenters</button>
+          </div>
+          <p class="small" id="mailMsg" style="margin-top:10px"></p>
+          <div style="overflow-x:auto"><table class="t" id="mailTable"></table></div>
         </div>
         <div class="card">
           <div class="row"><h2>Ratings so far</h2><div class="spacer"></div><span class="small muted">Updates every few seconds</span></div>
@@ -248,10 +262,11 @@
         </div>
         <div class="card">
           <h2>Class list</h2>
-          <div id="eNames" class="chips" style="margin:10px 0"></div>
-          <label class="f" for="eAdd">Add names (one per line)</label>
-          <textarea id="eAdd" style="min-height:70px"></textarea>
-          <div class="row end" style="margin-top:10px"><button class="btn btn-sm" id="eAddBtn">Add</button></div>
+          <p class="small muted">Emails are optional and only used to email each presenter their results. Change an email and click outside the box to save it.</p>
+          <div id="eRoster" style="overflow-x:auto;margin:10px 0"></div>
+          <label class="f">Add students</label>
+          <div id="ePeople"></div>
+          <div class="row end" style="margin-top:10px"><button class="btn btn-sm btn-primary" id="eAddBtn">Add</button></div>
         </div>
         <div class="card" id="eAiCard">
           <h2>AI reference ideas (Insight Lens)</h2>
@@ -285,6 +300,10 @@
       <button class="btn btn-sm btn-primary" id="pClose">Close</button>
     </div>
     <div class="proj-body" id="pBody"></div>
+  </div>
+  <div class="projector hidden" id="mailModal">
+    <div class="proj-bar"><span class="proj-name" style="font-size:1.1rem">Email preview</span><span class="pill" id="mailModalTo"></span><div class="spacer"></div><button class="btn btn-sm btn-primary" id="mailModalClose">Close</button></div>
+    <iframe id="mailFrame" title="Email preview" style="width:100%;height:calc(100vh - 64px);border:0;background:#f7f5f0"></iframe>
   </div>
   <div class="big-qr hidden" id="bigQr">
     <h1>Scan to join</h1>
@@ -429,36 +448,85 @@
     }
 
     // ---------- Class list parsing ----------
-    function namesFromRows(rows) {
+    // Class list file → [{name, email}]. Finds first/last name or full-name columns, and an email column.
+    function peopleFromRows(rows) {
       rows = rows.filter(function (r) { return r && r.some(function (c) { return String(c).trim(); }); });
       if (!rows.length) return [];
-      var hdr = -1, first = -1, last = -1, full = -1;
+      var hdr = -1, first = -1, last = -1, full = -1, mail = -1;
       for (var i = 0; i < Math.min(rows.length, 6) && hdr < 0; i++) {
         rows[i].forEach(function (c, j) {
           var h = String(c).trim().toLowerCase();
           if (/first\s*name|given\s*name|pr[ée]nom/.test(h)) first = j;
           else if (/last\s*name|surname|family\s*name/.test(h)) last = j;
+          else if (/e-?mail|courriel/.test(h)) mail = j;
           else if (/^(student\s*)?(full\s*)?names?$|^student$|^nom$/.test(h)) full = j;
         });
-        if (first >= 0 || last >= 0 || full >= 0) hdr = i;
+        if (first >= 0 || last >= 0 || full >= 0 || mail >= 0) hdr = i;
       }
       var body = hdr >= 0 ? rows.slice(hdr + 1) : rows;
       var cell = function (r, j) { return j >= 0 && r[j] != null ? String(r[j]).trim() : ''; };
-      var out;
-      if (first >= 0 && last >= 0) out = body.map(function (r) { return (cell(r, first) + ' ' + cell(r, last)).trim(); });
-      else if (full >= 0) out = body.map(function (r) { return cell(r, full); });
-      else if (first >= 0) out = body.map(function (r) { return cell(r, first); });
+      var width = Math.max.apply(null, body.map(function (r) { return r.length; }));
+      if (mail < 0) for (var m = 0; m < width; m++) { if (body.filter(function (r) { return /@/.test(cell(r, m)); }).length >= body.length / 2) { mail = m; break; } }
+      var nameOf = null;
+      if (first >= 0 && last >= 0) nameOf = function (r) { return (cell(r, first) + ' ' + cell(r, last)).trim(); };
+      else if (full >= 0) nameOf = function (r) { return cell(r, full); };
+      else if (first >= 0) nameOf = function (r) { return cell(r, first); };
       else {
-        var best = 0, bestScore = -1, width = Math.max.apply(null, body.map(function (r) { return r.length; }));
+        var best = 0, bestScore = -1;
         for (var j = 0; j < width; j++) {
+          if (j === mail) continue;
           var score = body.filter(function (r) { var v = cell(r, j); return /[a-z]/i.test(v) && v.indexOf('@') < 0 && !/^\d+$/.test(v); }).length;
           if (score > bestScore) { bestScore = score; best = j; }
         }
-        out = body.map(function (r) { return cell(r, best); });
+        nameOf = function (r) { return cell(r, best); };
       }
-      return out.map(function (n) { var m = n.match(/^([^,]+),\s*([^,]+)$/); return (m ? m[2] + ' ' + m[1] : n).replace(/\s+/g, ' ').trim(); })
-        .filter(function (n) { return n && /[a-z]/i.test(n) && n.indexOf('@') < 0; });
+      return body.map(function (r) {
+        var n = nameOf(r), mm = n.match(/^([^,]+),\s*([^,]+)$/);
+        n = (mm ? mm[2] + ' ' + mm[1] : n).replace(/\s+/g, ' ').trim();
+        var em = cell(r, mail).replace(/^mailto:/i, '');
+        return { name: n, email: /@/.test(em) ? em : '' };
+      }).filter(function (p) { return p.name && /[a-z]/i.test(p.name) && p.name.indexOf('@') < 0; });
     }
+
+    // ---------- Student rows: name + email ----------
+    function peopleEditor(el, people) {
+      if (!people.length) people = [{ name: '', email: '' }, { name: '', email: '' }, { name: '', email: '' }];
+      el.innerHTML = '<div class="people">' + people.map(function (p) {
+        return '<div class="person-row"><input type="text" class="p-name" placeholder="Name" value="' + TL.esc(p.name) + '"><input type="email" class="p-email" placeholder="Email (optional)" value="' + TL.esc(p.email || '') + '"><button type="button" class="x-btn" title="Remove">&times;</button></div>';
+      }).join('') + '</div><div class="row" style="margin-top:8px"><button type="button" class="btn btn-sm p-add">+ Add a student</button><button type="button" class="btn btn-sm p-paste">Paste a list</button></div>';
+    }
+    function readPeople(el) {
+      var seen = {};
+      return Array.prototype.map.call(el.querySelectorAll('.person-row'), function (r) { return { name: r.querySelector('.p-name').value.replace(/\s+/g, ' ').trim(), email: r.querySelector('.p-email').value.trim() }; })
+        .filter(function (p) { var k = p.name.toLowerCase(); if (!p.name || seen[k]) return false; seen[k] = 1; return true; });
+    }
+    function addPeople(el, list) {
+      var cur = readPeople(el), have = {};
+      cur.forEach(function (p) { have[p.name.toLowerCase()] = p; });
+      list.forEach(function (p) { var k = p.name.toLowerCase(); if (have[k]) { if (!have[k].email && p.email) have[k].email = p.email; } else { cur.push(p); have[k] = p; } });
+      peopleEditor(el, cur);
+    }
+    function wirePeopleEditor(el, onChange) {
+      el.addEventListener('click', function (e) {
+        if (e.target.classList.contains('x-btn')) { e.target.closest('.person-row').remove(); if (onChange) onChange(); }
+        if (e.target.classList.contains('p-add')) {
+          var row = document.createElement('div'); row.className = 'person-row';
+          row.innerHTML = '<input type="text" class="p-name" placeholder="Name"><input type="email" class="p-email" placeholder="Email (optional)"><button type="button" class="x-btn" title="Remove">&times;</button>';
+          el.querySelector('.people').appendChild(row); row.querySelector('.p-name').focus();
+        }
+        if (e.target.classList.contains('p-paste')) {
+          var t = prompt('Paste one student per line: "Name, email" (email optional).'); if (!t) return;
+          addPeople(el, t.split(/\n/).map(function (line) {
+            var m = line.match(/[^\s<>(),;:"]+@[^\s<>(),;:"]+\.[A-Za-z]{2,}/);
+            return { name: line.replace(m ? m[0] : '', '').replace(/[<>(),;\t]+/g, ' ').replace(/\s+/g, ' ').trim(), email: m ? m[0] : '' };
+          }).filter(function (p) { return p.name; }));
+          if (onChange) onChange();
+        }
+      });
+      el.addEventListener('input', function () { if (onChange) onChange(); });
+    }
+    function badEmails(list) { return list.filter(function (p) { return p.email && !/^[^\s@<>(),;:"]+@[^\s@<>(),;:"]+\.[A-Za-z]{2,}$/.test(p.email); }); }
+
     function lines(t) { var seen = {}; return t.split(/\n/).map(function (s) { return s.trim(); }).filter(function (s) { var k = s.toLowerCase(); if (!s || seen[k]) return false; seen[k] = 1; return true; }); }
 
     // ---------- New session ----------
@@ -469,7 +537,7 @@
       $('nAiCard').classList.toggle('hidden', ls.indexOf('insight') === -1);
     }
     $('newBtn').addEventListener('click', function () {
-      $('nTitle').value = ''; $('nBrief').value = ''; $('nNames').value = ''; $('nCount').textContent = '0 names'; $('nGenMsg').textContent = ''; $('nFileMsg').textContent = 'For example, the Brightspace class list.';
+      $('nTitle').value = ''; $('nBrief').value = ''; peopleEditor($('nPeople'), []); $('nCount').textContent = '0 students'; $('nGenMsg').textContent = ''; $('nFileMsg').textContent = 'For example, the Brightspace class list.';
       $('nIdeas').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === '3'); });
       toolPicker($('nTools'), 'all'); fillProducts($('nProduct'), 'Consumer product'); fillCounts($('nCountRefs'));
       refEditor($('nRefs'), []); newAi = {}; newToolChanged('all');
@@ -478,7 +546,8 @@
     wireSeg($('nIdeas'));
     wireToolPicker($('nTools'), newToolChanged);
     wireRefEditor($('nRefs')); wireRefEditor($('eRefs'));
-    $('nNames').addEventListener('input', function () { var n = lines(this.value).length; $('nCount').textContent = n + ' name' + (n === 1 ? '' : 's'); });
+    function countPeople() { var n = readPeople($('nPeople')).length, e = readPeople($('nPeople')).filter(function (p) { return p.email; }).length; $('nCount').textContent = n + ' student' + (n === 1 ? '' : 's') + (n ? ' · ' + e + ' with email' : ''); }
+    wirePeopleEditor($('nPeople'), countPeople); wirePeopleEditor($('ePeople'));
     $('nFile').addEventListener('change', function () {
       var f = this.files[0], msg = $('nFileMsg'); if (!f) return;
       if (!window.XLSX) { msg.textContent = 'Still loading, please try again in a moment.'; return; }
@@ -486,20 +555,22 @@
       rd.onload = function (e) {
         try {
           var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-          var names = namesFromRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }));
-          if (!names.length) throw new Error();
-          var all = lines($('nNames').value + '\n' + names.join('\n'));
-          $('nNames').value = all.join('\n'); $('nNames').dispatchEvent(new Event('input'));
-          msg.textContent = 'Found ' + names.length + ' names in ' + f.name + '. Please check them below.';
+          var people = peopleFromRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }));
+          if (!people.length) throw new Error();
+          addPeople($('nPeople'), people); countPeople();
+          var withMail = people.filter(function (p) { return p.email; }).length;
+          msg.textContent = 'Found ' + people.length + ' students (' + withMail + ' with email) in ' + f.name + '. Please check them below.';
         } catch (er) { msg.textContent = 'Could not find names in this file. Type them below instead.'; }
       };
       rd.readAsArrayBuffer(f); this.value = '';
     });
     $('nGen').addEventListener('click', function () { generate($('nBrief').value, $('nCountRefs').value, $('nRefs'), $('nGenMsg'), this, function (ai) { newAi = ai; }); });
     $('createBtn').addEventListener('click', function () {
-      var title = $('nTitle').value.trim(), names = lines($('nNames').value), tools = lensesOf(pickedTool($('nTools')));
+      var title = $('nTitle').value.trim(), names = readPeople($('nPeople')), tools = lensesOf(pickedTool($('nTools')));
       if (!title) { alert('Please give the session a name (step 1).'); return; }
       if (names.length < 2) { alert('Please add the class list (step 3).'); return; }
+      var bad = badEmails(names);
+      if (bad.length) { alert('Please check these email addresses: ' + bad.map(function (p) { return p.name + ' (' + p.email + ')'; }).join(', ')); return; }
       var btn = this; btn.disabled = true; btn.textContent = 'Creating…';
       post('create', { title: title, brief: $('nBrief').value, ideasPer: segVal($('nIdeas')), lenses: tools, productType: $('nProduct').value, names: names,
         refs: tools.indexOf('insight') !== -1 ? readRefs($('nRefs')) : [], ai: newAi })
@@ -554,6 +625,7 @@
     var qrFor = null;
     function raterCount(sid, lens) { return S.ratings.filter(function (r) { return r.student_id === sid && r.slot === 1 && r.lens === lens; }).length; }
     function renderClass() {
+      if (rosterFor !== S.id) loadRoster(); else if (!mailBusy) renderMailTable();
       if (qrFor !== S.id) {
         $('qrSmall').innerHTML = '';
         new QRCode($('qrSmall'), { text: joinUrl(S.id), width: 190, height: 190, colorDark: '#1f2a44', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
@@ -588,6 +660,111 @@
     $('bigQrClose').addEventListener('click', function () { $('bigQr').classList.add('hidden'); });
     $('liveToggle').addEventListener('click', function () { post('update', { id: S.id, liveResults: !S.liveResults }).then(function () { lastSig = ''; return refreshData(); }); });
     $('warmToggle').addEventListener('click', function () { post('update', { id: S.id, warmup: !S.warmup }).then(function () { lastSig = ''; return refreshData(); }); });
+
+    // ---------- Email results to presenters ----------
+    var roster = [], rosterFor = null, mailBusy = false;
+    function loadRoster() {
+      rosterFor = S.id;
+      return post('roster', { id: S.id }).then(function (r) {
+        roster = r.students;
+        $('mailFrom').textContent = r.from ? 'From: TRILUME <' + r.from + '>' : 'The email account is not set up yet.';
+        if (!$('mailTestTo').value && r.from) $('mailTestTo').placeholder = 'Your email (optional)';
+        renderMailTable();
+      });
+    }
+    function hasResults(id) { return S.ratings.some(function (r) { return r.student_id === id; }); }
+    function renderMailTable() {
+      var withMail = roster.filter(function (p) { return p.email; }).length, ready = roster.filter(function (p) { return p.email && hasResults(p.id); }).length;
+      $('mailTable').innerHTML = '<tr><th>Presenter</th><th>Email</th><th>Status</th><th></th></tr>' + roster.map(function (p) {
+        var status = !p.email ? '<span class="muted">No email: will be skipped</span>' : !hasResults(p.id) ? '<span class="muted">No ratings yet</span>' :
+          p.emailed_at ? '<span style="color:var(--ok);font-weight:700">✓ Sent ' + new Date(p.emailed_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</span>' : 'Ready';
+        return '<tr data-sid="' + p.id + '"><td><b>' + TL.esc(p.name) + '</b></td><td>' + (p.email ? TL.esc(p.email) : '–') + '</td><td class="m-status">' + status + '</td>' +
+          '<td><button class="btn btn-sm m-send" data-sid="' + p.id + '"' + (p.email && hasResults(p.id) ? '' : ' disabled') + '>' + (p.emailed_at ? 'Send again' : 'Send') + '</button></td></tr>';
+      }).join('');
+      $('mailAll').textContent = 'Email all presenters (' + ready + ')';
+      $('mailAll').disabled = !ready || mailBusy;
+      if (!mailBusy) $('mailMsg').textContent = roster.length ? withMail + ' of ' + roster.length + ' students have an email address.' : '';
+    }
+    // Build one presenter's email: a text summary per idea, and the map pictures drawn off-screen.
+    function buildEmail(id) {
+      var st = S.students.find(function (x) { return x.id === id; }) || roster.find(function (x) { return x.id === id; });
+      var ideas = [];
+      for (var k = 1; k <= S.ideasPer; k++) {
+        var res = comp.byKey[comp.key(id, k)]; if (!res) continue;
+        ideas.push({ slot: k, color: TL.IDEA_COLORS[k - 1], tools: S.lenses.filter(function (l) { return res.lens[l] && res.lens[l].n; }).map(function (l) {
+          var r = res.lens[l];
+          return { name: L[l].name, color: L[l].color, xName: L[l].x.name.split(' (')[0], x: r.x.toFixed(1), yName: L[l].y.axisName || L[l].y.name, y: r.y.toFixed(1), inZone: r.inZone, sug: r.sug };
+        }) });
+      }
+      var host = document.createElement('div');
+      host.style.cssText = 'position:fixed;left:-12000px;top:0;width:1100px;background:#fff';
+      document.body.appendChild(host);
+      var title = (st ? st.name : 'Presenter') + ' · ' + S.title;
+      host.innerHTML = TL.presenterHtml(S, comp, id, { cubeKey: 'email', title: title });
+      TL.mountPresenterCube(host, S, comp, id, 'email');
+      var jobs = Array.prototype.map.call(host.querySelectorAll('.tool-card'), function (card) {
+        var name = card.querySelector('.tool-name').textContent;
+        return TL.mapToPng(card.querySelector('svg.map'), name, 900).then(function (u) { return { label: name, dataUrl: u }; });
+      });
+      var cube = host.querySelector('canvas.cube');
+      if (cube) jobs.push(TL.mapToPng(cube, '3D map: all three tools', 900).then(function (u) { return { label: '3D map: all three tools', dataUrl: u }; }));
+      return Promise.all(jobs).then(function (images) { host.remove(); return { ideas: ideas, images: images }; });
+    }
+    function sendResults(id, extra) {
+      return buildEmail(id).then(function (m) {
+        return post('sendResults', Object.assign({ id: S.id, student: id, includeComments: $('mailComments').checked, ideas: m.ideas, images: m.images }, extra || {}));
+      });
+    }
+    function firstWithResults() { var p = roster.find(function (x) { return hasResults(x.id); }) || S.students.find(function (x) { return hasResults(x.id); }); return p ? p.id : null; }
+    $('mailPreview').addEventListener('click', function () {
+      var id = firstWithResults(); if (!id) { alert('No presenter has ratings yet.'); return; }
+      var btn = this; btn.disabled = true; btn.textContent = 'Preparing…';
+      sendResults(id, { preview: true }).then(function (r) {
+        var p = roster.find(function (x) { return x.id === id; });
+        $('mailModalTo').textContent = 'To: ' + (p && p.email ? p.email : '(no email)');
+        $('mailFrame').srcdoc = r.html; $('mailModal').classList.remove('hidden'); document.body.style.overflow = 'hidden';
+      }).catch(function (e) { alert(e.message); }).finally(function () { btn.disabled = false; btn.textContent = 'Preview an email'; });
+    });
+    $('mailModalClose').addEventListener('click', function () { $('mailModal').classList.add('hidden'); document.body.style.overflow = ''; });
+    $('mailTest').addEventListener('click', function () {
+      var id = firstWithResults(); if (!id) { alert('No presenter has ratings yet.'); return; }
+      var to = $('mailTestTo').value.trim(), btn = this;
+      if (to && !/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(to)) { alert('Please check the test email address.'); return; }
+      btn.disabled = true; btn.textContent = 'Sending…';
+      sendResults(id, { test: true, testTo: to }).then(function (r) { toast('Test email sent to ' + r.to + '.'); $('mailMsg').textContent = 'Test sent to ' + r.to + '. Check the inbox (and the junk folder).'; })
+        .catch(function (e) { alert(e.message); }).finally(function () { btn.disabled = false; btn.textContent = 'Send a test'; });
+    });
+    $('mailTable').addEventListener('click', function (e) {
+      var b = e.target.closest('.m-send'); if (!b || mailBusy) return;
+      var id = parseInt(b.dataset.sid), p = roster.find(function (x) { return x.id === id; });
+      if (!confirm('Email the results to ' + p.name + ' (' + p.email + ')?')) return;
+      b.disabled = true; b.textContent = 'Sending…';
+      sendResults(id).then(function () { toast('Sent to ' + p.name + '.'); return loadRoster(); }).catch(function (er) { alert(er.message); b.disabled = false; b.textContent = 'Send'; });
+    });
+    $('mailAll').addEventListener('click', function () {
+      var list = roster.filter(function (p) { return p.email && hasResults(p.id); });
+      var skipped = roster.filter(function (p) { return !p.email; }), noRes = roster.filter(function (p) { return p.email && !hasResults(p.id); });
+      if (!list.length) return;
+      var again = list.filter(function (p) { return p.emailed_at; }).length;
+      if (!confirm('Email the results to ' + list.length + ' presenter' + (list.length === 1 ? '' : 's') + (again ? ' (' + again + ' already received them before)' : '') + '?' +
+        (skipped.length ? '\n' + skipped.length + ' without an email will be skipped.' : '') + ($('mailComments').checked ? '\nClassmates’ comments are included.' : '\nComments are NOT included.'))) return;
+      mailBusy = true; $('mailAll').disabled = true;
+      var sent = [], failed = [], i = 0;
+      (function next() {
+        if (i >= list.length) {
+          mailBusy = false;
+          return loadRoster().then(function () {
+            $('mailMsg').innerHTML = '<b>Sent to ' + sent.length + ' presenter' + (sent.length === 1 ? '' : 's') + '.</b>' +
+              (skipped.length ? ' Skipped (no email): ' + skipped.map(function (p) { return TL.esc(p.name); }).join(', ') + '.' : '') +
+              (noRes.length ? ' Not sent (no ratings yet): ' + noRes.map(function (p) { return TL.esc(p.name); }).join(', ') + '.' : '') +
+              (failed.length ? ' <span style="color:var(--red)">Failed: ' + failed.map(function (p) { return TL.esc(p.name); }).join(', ') + '.</span>' : '');
+          });
+        }
+        var p = list[i++];
+        $('mailMsg').textContent = 'Sending ' + i + ' of ' + list.length + ': ' + p.name + '… Please keep this page open.';
+        sendResults(p.id).then(function () { sent.push(p); }).catch(function () { failed.push(p); }).then(next);
+      })();
+    });
 
     // ---------- Live results ----------
     function hasRatings(st) { return S.ratings.some(function (r) { return r.student_id === st.id; }); }
@@ -677,7 +854,13 @@
       toolPicker($('eTools'), choiceOf(S.lenses)); fillProducts($('eProduct'), S.productType);
       if (!zl || S.lenses.indexOf(zl) === -1) zl = S.lenses[0];
       renderZoneTabs(); loadZone();
-      $('eNames').innerHTML = S.students.map(function (st) { return '<span class="chip" style="cursor:default">' + TL.esc(st.name) + ' <button class="x-btn" data-rm="' + st.id + '" title="Remove" style="min-height:0;font-size:1rem">&times;</button></span>'; }).join('');
+      peopleEditor($('ePeople'), [{ name: '', email: '' }]);
+      post('roster', { id: S.id }).then(function (r) {
+        $('eRoster').innerHTML = '<table class="t"><tr><th>Name</th><th>Email</th><th></th></tr>' + r.students.map(function (st) {
+          return '<tr><td><b>' + TL.esc(st.name) + '</b></td><td><input type="email" class="r-email" data-sid="' + st.id + '" value="' + TL.esc(st.email || '') + '" placeholder="Email (optional)" style="min-height:38px;padding:6px 10px"></td>' +
+            '<td><button class="x-btn" data-rm="' + st.id + '" title="Remove">&times;</button></td></tr>';
+        }).join('') + '</table>';
+      });
       var hasI = S.lenses.indexOf('insight') !== -1;
       $('eAiCard').classList.toggle('hidden', !hasI);
       if (hasI) {
@@ -706,14 +889,23 @@
     ['zCx', 'zCy', 'zR'].forEach(function (id) { $(id).addEventListener('input', zoneInput); });
     $('zSave').addEventListener('click', function () { var z = curZone(); z.lens = zl; post('update', { id: S.id, zone: z }).then(function () { toast('Zone saved.'); lastSig = ''; return refreshData(); }); });
     $('zReset').addEventListener('click', function () { post('update', { id: S.id, zone: { lens: zl, reset: true } }).then(function () { lastSig = ''; return refreshData(); }).then(function () { loadZone(); toast('Zone reset.'); }); });
-    $('eNames').addEventListener('click', function (e) {
+    $('eRoster').addEventListener('change', function (e) {
+      if (!e.target.classList.contains('r-email')) return;
+      var inp = e.target;
+      post('update', { id: S.id, setEmail: { student: inp.dataset.sid, email: inp.value.trim() } })
+        .then(function () { inp.style.borderColor = ''; toast('Email saved.'); rosterFor = null; })
+        .catch(function (er) { inp.style.borderColor = 'var(--red)'; alert(er.message); });
+    });
+    $('eRoster').addEventListener('click', function (e) {
       var id = e.target.dataset.rm; if (!id) return;
       if (!confirm('Remove this name from the list? Their ratings are kept in the downloads.')) return;
       post('update', { id: S.id, removeStudent: id }).then(function () { lastSig = ''; return refreshData(); }).then(renderSettings);
     });
     $('eAddBtn').addEventListener('click', function () {
-      var names = lines($('eAdd').value); if (!names.length) return;
-      post('update', { id: S.id, addNames: names }).then(function () { $('eAdd').value = ''; toast('Names added.'); lastSig = ''; return refreshData(); }).then(renderSettings);
+      var names = readPeople($('ePeople')); if (!names.length) return;
+      var bad = badEmails(names);
+      if (bad.length) { alert('Please check these email addresses: ' + bad.map(function (p) { return p.email; }).join(', ')); return; }
+      post('update', { id: S.id, addNames: names }).then(function () { rosterFor = null; toast('Students added.'); lastSig = ''; return refreshData(); }).then(renderSettings);
     });
     $('eGen').addEventListener('click', function () { generate($('eBrief').value, $('eCountRefs').value, $('eRefs'), $('eGenMsg'), this, function (ai) { editAi = ai; }); });
     $('eRefSave').addEventListener('click', function () {

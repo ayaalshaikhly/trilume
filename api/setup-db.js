@@ -84,6 +84,9 @@ module.exports = async function handler(req, res) {
     // Sliders: scores are decimals (1.0–5.0).
     await sql`ALTER TABLE ratings ALTER COLUMN x TYPE REAL, ALTER COLUMN y TYPE REAL`;
     await sql`ALTER TABLE ref_ratings ALTER COLUMN x TYPE REAL, ALTER COLUMN y TYPE REAL`;
+    // Email results: each student may have an email address; emailed_at = when their results were last sent.
+    await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`;
+    await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS emailed_at TIMESTAMPTZ`;
     // Written feedback: one optional comment per rater per idea (anonymous).
     await sql`
       CREATE TABLE IF NOT EXISTS comments (

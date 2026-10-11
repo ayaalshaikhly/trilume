@@ -37,7 +37,8 @@ Students rate each presenter's ideas with one tool, or with all three: the **MAY
    - **All three tools:** MAYA → Next → Metaphor → Next → Insight → Submit.
    - On the last screen, an optional **written comment** per idea (anonymous, up to 300 characters, instructor only).
 4. Results: one map per tool for each presenter with each idea's class average (red, blue, gold), shown on the projector and, by default, on students' phones after Submit; a whole-class map; and with all three tools a **3D map** where each idea is a point on the MAYA, Metaphor and Insight axes (each axis = closeness to that tool's target zone, 0–100). Every map has a **Save** button (picture).
-5. Downloads: **Excel** (summary + one sheet per presenter with every tool's scores and the comments) and CSV files (ideas, all ratings, reference ideas), with names replaced by codes for research.
+5. **Email results:** after class, one button emails each presenter their own results (scores, suggestions, map pictures and, if ticked, comments) from the TRILUME Gmail account (`From: TRILUME`). Students without an email are skipped. Preview and test buttons; a "✓ Sent" status per student.
+6. Downloads: **Excel** (summary + one sheet per presenter with every tool's scores and the comments) and CSV files (ideas, all ratings, reference ideas), with names replaced by codes for research.
 
 ## Files
 
@@ -49,6 +50,8 @@ Students rate each presenter's ideas with one tool, or with all three: the **MAY
 | `public/style.css` | Design (system fonts only; the domain's CSP blocks web fonts) |
 | `api/t.js` | All actions (`?action=`), Gemini call, passcode check |
 | `api/setup-db.js` | Creates the tables (safe to re-run) |
+| `api/_email.js` | The results email (HTML template, sending through Gmail with nodemailer) |
+| `api/_email-logo.js` | The TRILUME logo as PNG for emails |
 | `deploy.sh` | Deploys a git-free copy to Vercel and runs setup-db |
 | `DEVELOPMENT.md` | Full developer notes: where everything lives, how to change things, deploy and test |
 
@@ -60,6 +63,7 @@ Students rate each presenter's ideas with one tool, or with all three: the **MAY
 | Neon project | `trilume` (org Aya) |
 | `DATABASE_URL` | Neon connection string (Vercel env only) |
 | `INSTRUCTOR_PASSCODE` | First passcode (Vercel env only); once changed in the app, the salted hash in the `settings` table is used |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | The TRILUME Gmail account and its Google App password, used to send results emails (Vercel env only) |
 | `GEMINI_API_KEY` | Google AI Studio key (Vercel env only). Model: `gemini-flash-latest` with fallbacks |
 | Domain routing | `crolog` project: `next.config.ts` rewrites `/trilume` and `/TRILUME` + `middleware.ts` passthrough |
 
@@ -67,7 +71,7 @@ Deploy: `bash deploy.sh`
 
 ## Privacy
 
-Ratings and comments are anonymous (a random phone code, never linked to a name and never returned by the API). Comments are only in the instructor's downloads. Only the design brief is sent to the AI.
+Students' email addresses are stored with the class list, never shown to students, and only used to send their results. Ratings and comments are anonymous (a random phone code, never linked to a name and never returned by the API). Comments are only in the instructor's downloads. Only the design brief is sent to the AI.
 
 ## License
 

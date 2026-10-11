@@ -1,5 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
+const mailer = require('./_email');
 
 // TRILUME API: one endpoint, ?action=...
 // Public actions are used by students' phones; instructor actions need the passcode.
@@ -57,13 +58,21 @@ function clampZone(z, d) {
 // Slider score: 1.0–5.0 rounded to one decimal, or NaN if invalid.
 function score(v) { const n = Math.round(parseFloat(v) * 10) / 10; return n >= 1 && n <= 5 ? n : NaN; }
 function cleanText(s, max) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, max); }
-function cleanNames(names) {
-  if (!Array.isArray(names)) return [];
+const EMAIL_RE = /^[^\s@<>(),;:"]+@[^\s@<>(),;:"]+\.[A-Za-z]{2,}$/;
+function cleanEmail(e) { const v = cleanText(e, 120).replace(/^mailto:/i, ''); return EMAIL_RE.test(v) ? v.toLowerCase() : ''; }
+function person(raw) {
+  if (raw && typeof raw === 'object') return { name: cleanText(raw.name, 80), email: cleanEmail(raw.email) };
+  const t = cleanText(raw, 200), m = t.match(/[^\s<>(),;:"]+@[^\s<>(),;:"]+\.[A-Za-z]{2,}/);
+  if (!m) return { name: t.slice(0, 80), email: '' };
+  return { name: t.replace(m[0], '').replace(/[<>(),;\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80), email: cleanEmail(m[0]) };
+}
+function cleanNames(list) {
+  if (!Array.isArray(list)) return [];
   const seen = new Set(), out = [];
-  for (const raw of names) {
-    const n = cleanText(raw, 80);
-    if (!n || seen.has(n.toLowerCase())) continue;
-    seen.add(n.toLowerCase()); out.push(n);
+  for (const raw of list) {
+    const pp = person(raw);
+    if (!pp.name || seen.has(pp.name.toLowerCase())) continue;
+    seen.add(pp.name.toLowerCase()); out.push(pp);
   }
   return out.slice(0, 200);
 }
@@ -269,7 +278,7 @@ module.exports = async function handler(req, res) {
                 ${cleanText(ai.model, 80) || (refs.length ? 'typed by instructor' : '')}, ${String(ai.prompt || '').slice(0, 2000)},
                 ${refs.length ? new Date().toISOString() : null})`;
       for (let i = 0; i < names.length; i++) {
-        await sql`INSERT INTO students (session_id, name, position) VALUES (${id}, ${names[i]}, ${i})`;
+        await sql`INSERT INTO students (session_id, name, email, position) VALUES (${id}, ${names[i].name}, ${names[i].email}, ${i})`;
       }
       await saveRefs(sql, id, refs);
       return res.status(201).json({ id });
@@ -300,9 +309,14 @@ module.exports = async function handler(req, res) {
         const have = new Set(existing.map(p => p.name.toLowerCase()));
         let pos = existing.length ? Math.max(...existing.map(p => p.position)) + 1 : 0;
         for (const n of cleanNames(body.addNames)) {
-          if (have.has(n.toLowerCase())) continue;
-          await sql`INSERT INTO students (session_id, name, position) VALUES (${s.id}, ${n}, ${pos++})`;
+          if (have.has(n.name.toLowerCase())) continue;
+          await sql`INSERT INTO students (session_id, name, email, position) VALUES (${s.id}, ${n.name}, ${n.email}, ${pos++})`;
         }
+      }
+      if (body.setEmail && body.setEmail.student) {
+        const raw = cleanText(body.setEmail.email, 120), em = cleanEmail(raw);
+        if (raw && !em) return res.status(400).json({ error: 'That email address does not look right.' });
+        await sql`UPDATE students SET email = ${em} WHERE id = ${parseInt(body.setEmail.student)} AND session_id = ${s.id}`;
       }
       if (body.removeStudent) await sql`UPDATE students SET active = FALSE WHERE id = ${parseInt(body.removeStudent)} AND session_id = ${s.id}`;
       if (Array.isArray(body.refs)) {
@@ -313,6 +327,44 @@ module.exports = async function handler(req, res) {
       const fresh = await loadSession(sql, s.id);
       const students = await loadStudents(sql, s.id);
       return res.status(200).json({ ...sessionOut(fresh), students });
+    }
+
+    if (action === 'roster') {
+      const rows = await sql`SELECT id, name, email, emailed_at FROM students WHERE session_id = ${String(body.id || '')} AND active = TRUE ORDER BY position, id`;
+      return res.status(200).json({ students: rows, from: mailer.accountAddress() });
+    }
+
+    // Email one presenter's results (or preview / send a test). The text summary and map pictures come from the
+    // instructor's browser; the address and the comments always come from the database.
+    if (action === 'sendResults') {
+      const s = await loadSession(sql, body.id);
+      if (!s) return res.status(404).json({ error: 'Session not found' });
+      const st = (await sql`SELECT id, name, email FROM students WHERE id = ${parseInt(body.student)} AND session_id = ${s.id}`)[0];
+      if (!st) return res.status(404).json({ error: 'Presenter not found' });
+      const ideas = (Array.isArray(body.ideas) ? body.ideas : []).slice(0, 3).map(i => ({
+        slot: parseInt(i.slot) || 1, color: cleanText(i.color, 9),
+        tools: (Array.isArray(i.tools) ? i.tools : []).slice(0, 3).map(t => ({
+          name: cleanText(t.name, 40), color: cleanText(t.color, 9), xName: cleanText(t.xName, 80), x: cleanText(t.x, 8),
+          yName: cleanText(t.yName, 80), y: cleanText(t.y, 8), inZone: !!t.inZone, sug: cleanText(t.sug, 400)
+        })),
+        comments: []
+      }));
+      if (body.includeComments !== false) {
+        const cm = await sql`SELECT slot, text FROM comments WHERE session_id = ${s.id} AND student_id = ${st.id} ORDER BY created_at`;
+        ideas.forEach(i => { i.comments = cm.filter(c => c.slot === i.slot).map(c => c.text); });
+      }
+      const data = { session: s.title, presenter: st.name, ideas };
+      const images = Array.isArray(body.images) ? body.images : [];
+      if (body.preview) return res.status(200).json({ html: mailer.previewHtml(data, images) });
+      const to = body.test ? (cleanEmail(body.testTo) || mailer.accountAddress()) : st.email;
+      if (!to) return res.status(400).json({ error: 'No email address for ' + st.name + '.' });
+      try {
+        await mailer.send(to, data, images);
+      } catch (e) {
+        return res.status(502).json({ error: 'Could not send the email (' + e.message + ').' });
+      }
+      if (!body.test) await sql`UPDATE students SET emailed_at = NOW() WHERE id = ${st.id}`;
+      return res.status(200).json({ ok: true, to });
     }
 
     if (action === 'comments') {
