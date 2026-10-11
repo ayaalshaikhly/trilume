@@ -586,8 +586,9 @@
       $('proj').classList.remove('hidden'); document.body.style.overflow = 'hidden'; renderProj();
     });
     $('pClose').addEventListener('click', function () { $('proj').classList.add('hidden'); document.body.style.overflow = ''; });
-    $('pPrev').addEventListener('click', function () { pIdx = Math.max(0, pIdx - 1); projSig = ''; renderProj(); });
-    $('pNext').addEventListener('click', function () { pIdx = Math.min(S.students.length - 1, pIdx + 1); projSig = ''; renderProj(); });
+    // Previous / Next wrap around, so they always move (first ↔ last).
+    $('pPrev').addEventListener('click', function () { var n = S.students.length; pIdx = (pIdx - 1 + n) % n; projSig = ''; renderProj(); });
+    $('pNext').addEventListener('click', function () { var n = S.students.length; pIdx = (pIdx + 1) % n; projSig = ''; renderProj(); });
     $('pSel').addEventListener('change', function () { pIdx = parseInt(this.value); projSig = ''; renderProj(); });
     $('pNames').addEventListener('click', function () { post('update', { id: S.id, hideNames: !S.hideNames }).then(function () { lastSig = ''; projSig = ''; return refreshData(); }); });
     document.addEventListener('keydown', function (e) {
