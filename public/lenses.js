@@ -5,7 +5,7 @@
 (function () {
   var LENSES = {
     maya: {
-      key: 'maya', name: 'MAYA Lens', short: 'MAYA', color: '#0f766e', soft: '#e6f4f1',
+      key: 'maya', name: 'MAYA Lens', short: 'MAYA', color: '#2563EB', soft: '#e8effd',
       question: 'Will people accept this product?', credit: 'Raymond Loewy’s MAYA principle',
       zoneName: 'MAYA zone', axisMin: 1,
       x: { name: 'Familiarity', question: 'How easy is it to understand what this is and how it would be used?',
@@ -16,7 +16,7 @@
         levels: { 1: 'Very familiar: I have seen this many times before.', 2: 'Mostly familiar: ideas like this are common; only small changes.', 3: 'Somewhat new: some parts feel new, others feel familiar.', 4: 'Quite new: I have rarely seen anything like this.', 5: 'Never seen before: I have never seen anything like this.' } }
     },
     meta: {
-      key: 'meta', name: 'Metaphor Lens', short: 'Metaphor', color: '#6d28d9', soft: '#f1ebfd',
+      key: 'meta', name: 'Metaphor Lens', short: 'Metaphor', color: '#DC2626', soft: '#fdeaea',
       question: 'How is the metaphor working?', credit: 'Prof. WonJoon Chung’s Metaphoric Design Evaluation Matrix',
       zoneName: 'target metaphoric design zone', axisMin: 0,
       x: { name: 'Literalness of Representation', question: 'How directly does the design represent the visual of the source?',
@@ -27,7 +27,7 @@
         levels: { 1: 'Not at all: the UP and GP are not considered; the design is driven primarily by personal preference.', 2: 'Slightly: the UP and GP are considered superficially and have limited influence on the design’s development.', 3: 'Moderately: the UP and GP are used in the design, but some parts do not feel natural or work well.', 4: 'Strongly: the UP and GP are clearly identified and effectively incorporated into the design.', 5: 'Highly Effective: the UP and GP are clearly articulated and thoughtfully integrated, with their combination meaningfully informing the design.' } }
     },
     insight: {
-      key: 'insight', name: 'Insight Lens', short: 'Insight', color: '#c2410c', soft: '#fdf0e7',
+      key: 'insight', name: 'Insight Lens', short: 'Insight', color: '#16A34A', soft: '#e8f6ec',
       question: 'How much real thinking is in this idea?', credit: 'Aya Al-Shaikhly’s Insight Evaluation Matrix',
       zoneName: 'Insight zone', axisMin: 1,
       x: { name: 'Unexpectedness', question: 'Could anyone have thought of this?',
@@ -370,8 +370,8 @@
   function triangleSvg() {
     var W = 300, H = 250, A = [150, 34], B = [48, 204], C = [252, 204], N = 44;
     var hex = function (h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; };
-    // Brighter versions of the tool colours, so the mix stays vivid (like coloured light).
-    var cA = hex('#F2662B'), cB = hex('#14A396'), cC = hex('#8B5CF6');
+    // Red, green and blue light (RGB): Insight = green, MAYA = blue, Metaphor = red.
+    var cA = hex('#22C55E'), cB = hex('#3B82F6'), cC = hex('#EF4444');
     function col(a, b, c) {
       var m = [0, 1, 2].map(function (k) { return cA[k] * a + cB[k] * b + cC[k] * c; });
       var w = Math.pow(Math.min(a, b, c) * 3, 1.6);  // 1 at the centre, 0 on the edges
