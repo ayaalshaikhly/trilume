@@ -443,7 +443,7 @@
     }
     function generate(brief, count, el, msgEl, btn, done) {
       if (!brief.trim()) { alert('Please write the design brief first.'); return; }
-      btn.disabled = true; msgEl.textContent = 'The AI is writing ideas… (about 10–20 seconds)';
+      btn.disabled = true; msgEl.textContent = 'The AI is writing ideas… (usually 10–20 seconds, up to a minute when the AI is busy)';
       post('generate', { brief: brief, count: count }).then(function (r) {
         refEditor(el, r.ideas); msgEl.textContent = r.ideas.length + ' ideas written. Check them, remove any you don’t want.';
         done({ model: r.model, prompt: r.prompt });

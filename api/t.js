@@ -117,8 +117,10 @@ async function generateRefs(brief, n) {
   let lastErr = 'The AI did not answer.';
   for (const model of MODELS) {
     try {
+      // A busy model can take over a minute; give each one 20 seconds, then try the next.
       const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
         method: 'POST',
+        signal: AbortSignal.timeout(20000),
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: PROMPT + brief }] }],
@@ -132,7 +134,7 @@ async function generateRefs(brief, n) {
       const list = cleanRefs(JSON.parse(m ? m[0] : text));
       if (list.length < 5) { lastErr = 'The AI returned too few ideas.'; continue; }
       return { model, prompt: PROMPT + brief, ideas: list.slice(0, n) };
-    } catch (e) { lastErr = e.message; }
+    } catch (e) { lastErr = e.name === 'TimeoutError' ? 'The AI is very busy right now. Please try again in a minute, or paste ideas instead.' : e.message; }
   }
   throw new Error(lastErr);
 }
